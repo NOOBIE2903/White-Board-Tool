@@ -8,9 +8,23 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
 """
 
 import os
-
 from django.core.asgi import get_asgi_application
+from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.auth import AuthMiddlewareStack
+import whiteboard_app.routing
+
+# ProtocolTypeRouter: It's a router that looks at the protocol (like http or websocket) to decide what to do.
+# URLRouter: This is a router that looks at the URL path to decide which consumer (WebSocket code) to run, similar to how Django's urls.py works.
+# AuthMiddlewareStack: This adds authentication support to WebSocket connections, allowing you to access user information in your consumers.
+# whiteboard_app.routing: We import the file that will contain the list of WebSocket URL patterns.
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'white_board_backend.settings')
 
-application = get_asgi_application()
+application = ProtocolTypeRouter({
+    "http": get_asgi_application(),
+    "websocket": AuthMiddlewareStack(
+        URLRouter(
+            whiteboard_app.routing.websocket_urlpatterns
+        )
+    ),
+})
