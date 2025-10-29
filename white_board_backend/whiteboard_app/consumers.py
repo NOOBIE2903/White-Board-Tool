@@ -1,4 +1,3 @@
-# this file is like the views file for WebSockets
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 
