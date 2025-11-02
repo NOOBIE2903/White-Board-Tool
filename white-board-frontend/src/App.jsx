@@ -1,12 +1,18 @@
-import React from 'react'
-import Login from './components/Login'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+// import './A'
 
+// Import components and pages
+import Login from './components/login';
+import DashboardPage from './components/DashboardPage';
+import WhiteboardPage from './components/WhiteBoardPage';
+import CollaborativeWhiteboard from './components/CollaborativeWhiteboard';
 
-const App = () => {
+function App() {
   return (
     <BrowserRouter>
-      <div className="App font-sans min-h-screen p-8">
+      {/* Set up the main layout container */}
+      <div className="App font-sans min-h-screen p-8  bg-slate-600">
         <header className="mb-12">
           <h1 className="text-4xl font-bold text-center text-white drop-shadow-md">
             My Whiteboard App
@@ -16,13 +22,15 @@ const App = () => {
         <main>
           <Routes>
             <Route path="/login" element={<Login />} />
-            {/* <Route path="/" element={<DashboardPage />} /> */}
-            {/* <Route path="/whiteboard/:id" element={<WhiteboardPage />} /> */}
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/whiteboard/:id" element={<WhiteboardPage />} />
+            {/* console.log(boardId); */}
+            <Route path="/collab/:boardId" element={<CollaborativeWhiteboard />} />
           </Routes>
         </main>
       </div>
     </BrowserRouter>
-  )
+  );
 }
 
-export default App
+export default App;

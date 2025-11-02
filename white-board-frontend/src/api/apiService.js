@@ -62,6 +62,7 @@ export const getWhiteboards = async () => {
 //  * Makes a POST request to the /whiteboards/ endpoint
 export const createWhiteboard = async (name) => {
   try {
+    console.log("Creating whiteboard with name:", name);
     const response = await apiClient.post("/whiteboards/", { name });
     return response.data;
   } catch (error) {
@@ -69,3 +70,14 @@ export const createWhiteboard = async (name) => {
     throw error;
   }
 };
+
+export const getWhiteboardDetails = async (id) => {
+  try {
+    const response = await apiClient.get(`/whiteboards/${id}/`);
+    return response.data;
+  }
+  catch (error) {
+    console.error(`Error fetching whiteboard details:${id}`, error);
+    throw error;
+  } 
+}
