@@ -7,10 +7,10 @@ function CollaborativeWhiteboard() {
   const { boardId } = useParams();
   const [board, setBoard] = useState(null);
   const [elements, setElements] = useState(null);
-  const [lines, setLines] = useState([]); 
+  const [lines, setLines] = useState([]);
   const [chatMessages, setChatMessages] = useState([]);
   const [message, setMessage] = useState("");
-  const [tool, setTool] = useState("rectangle"); 
+  const [tool, setTool] = useState("rectangle");
   const wsRef = useRef(null);
   const isDrawing = useRef(false);
   const startPos = useRef({ x: 0, y: 0 });
@@ -19,6 +19,14 @@ function CollaborativeWhiteboard() {
   const [history, setHistory] = useState([]);
   const [cursor, setCursor] = useState({ x: 0, y: 0 });
   const [actions, setActions] = useState([]);
+  const [actionIndex, setActionIndex] = useState(0);
+  const currentDrawingId = useRef();
+  const [redoStack, setRedoStack] = useState([]);
+
+  const makeId = () =>
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
   // 🟢 Load whiteboard details on mount
   useEffect(() => {
@@ -85,10 +93,9 @@ function CollaborativeWhiteboard() {
       },
     };
     setRectangles((prev) => [...prev, newElement]);
-    setActions((prev) => [
-      ...prev,
-      { type: "rectangle", index: rectangles.length },
-    ]);
+    setActions((prev) => [...prev, newAction]);
+
+    setActionIndex((prev) => prev + 1);
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
@@ -102,14 +109,14 @@ function CollaborativeWhiteboard() {
       isDrawing.current = true;
       const pos = e.target.getStage().getPointerPosition();
       const strokeColor = tool === "eraser" ? "#1e293b" : "#ffffff";
-      setLines([
-        ...lines,
-        {
-          points: [pos.x, pos.y],
-          color: strokeColor,
-          strokeWidth: tool === "eraser" ? 20 : 2,
-        },
+      const strokeWidth = tool === "eraser" ? 20 : 2;
+      const id = makeId();
+
+      setLines((prev) => [
+        ...prev,
+        { id, points: [pos.x, pos.y], color: strokeColor, strokeWidth },
       ]);
+      currentDrawingId.current = id;
     } else if (tool === "rectangle") {
       const pos = e.target.getStage().getPointerPosition();
       startPos.current = pos;
@@ -143,38 +150,64 @@ function CollaborativeWhiteboard() {
     }
   };
 
+  const newAction = {
+    id: actionIndex + 1,
+    type: tool,
+    data: tool == "rectangle" ? newRect : lines[lines.length - 1],
+  };
   const handleMouseUp = () => {
     if (tool === "pen" || tool === "eraser") {
-      setActions((prev) => [...prev, { type: "line", index: lines.length }]);
+
+      setActions((prev) => [...prev, newAction]);
+
+      setActionIndex((prev) => prev + 1);
       isDrawing.current = false;
     } else if (tool === "rectangle" && newRect) {
       setRectangles((prev) => [...prev, newRect]);
-      setActions((prev) => [
-        ...prev,
-        { type: "rectangle", index: rectangles.length },
-      ]);
+      setActions((prev) => [...prev, newAction]);
+
+      setActionIndex((prev) => prev + 1);
       setNewRect(null);
       isDrawing.current = false;
     }
   };
 
   const undoLast = () => {
-    setActions((prevActions) => {
-      if (prevActions.length === 0) return prevActions;
+    if (actions.length == 0) return;
 
-      const lastAction = prevActions[prevActions.length - 1];
-      const newActions = prevActions.slice(0, -1);
+    const lastAction = actions[actions.length - 1];
 
-      if (lastAction.type === "line") {
-        setLines((prevLines) => prevLines.slice(0, -1));
-      } else if (lastAction.type === "rectangle") {
-        setRectangles((prevRects) => prevRects.slice(0, -1));
-      }
+    setRedoStack((prev) => [...prev, lastAction]);
 
-      return newActions;
-    });
+    setActions((prev) => prev.slice(0, -1));
+    setActionIndex((prev) => Math.max(prev - 1, 0));
+
+    if (lastAction.type === "pen" || lastAction.type === "eraser") {
+      setLines((prev) => prev.slice(0, -1));
+    } else if (lastAction.type === "rectangle") {
+      setRectangles((prev) => prev.slice(0, -1));
+    }
   };
-  console.log(actions);
+
+  const redoLast = () => {
+    if (redoStack.length == 0) return;
+
+    const nextAction = redoStack[redoStack.length - 1];
+
+    setRedoStack((prev) => prev.slice(0, -1));
+
+    setActions((prev) => [...prev, nextAction]);
+    setActionIndex((prev) => prev + 1);
+
+    if (nextAction.type === "pen" || nextAction.type === "eraser") {
+      setLines((prev) => [...prev, nextAction.data]);
+    } else if (nextAction.type === "rectangle") {
+      setRectangles((prev) => [...prev, nextAction.data]);
+    }
+  };
+
+  console.log(redoStack);
+  console.log(actionIndex);
 
   // 🟢 Chat Sending
   const sendChat = () => {
@@ -223,6 +256,12 @@ function CollaborativeWhiteboard() {
             className="px-3 py-1 rounded bg-yellow-600"
           >
             ↩️ Undo
+          </button>
+          <button
+            onClick={redoLast}
+            className="bg-orange-600 px-3 py-1 rounded"
+          >
+            ↪️ Redo
           </button>
         </div>
 
@@ -318,13 +357,10 @@ function CollaborativeWhiteboard() {
 
 export default CollaborativeWhiteboard;
 
-
-
-
 // fix the undo button logic
-// save the chats 
+// save the chats
 // add redo button
-// add other shoaes 
+// add other shoaes
 // add pen cursor
 // add colors and stroke width options
 // add size for eraser and for pen
