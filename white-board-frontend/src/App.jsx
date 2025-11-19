@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 // import './A'
 
 // Import components and pages
@@ -13,6 +14,7 @@ function App() {
     <BrowserRouter>
       {/* Set up the main layout container */}
       <div className="App font-sans min-h-screen p-8  bg-slate-600">
+        <Toaster />
         <header className="mb-12">
           <h1 className="text-4xl font-bold text-center text-white drop-shadow-md">
             My Whiteboard App

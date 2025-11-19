@@ -6,5 +6,6 @@ router = DefaultRouter()
 router.register(r'whiteboards', WhiteBoardViewSet, basename='whiteboard')
 
 urlpatterns = [
+    # path('create_whiteboard/', create_whiteboard),
     path('', include(router.urls)),
 ]

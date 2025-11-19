@@ -1,23 +1,4 @@
-import axios from "axios"
-
-const apiClient = axios.create({
-  baseURL: "http://127.0.0.1:8000/api/",
-});
-
-// --------- Interceptor to add the Auth token to each request ---------
-// This checks if we have a token saved in local storage and adds it to the headers of each request
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("accessToken");
-    if (token) {
-      config.headers["Authorization"] = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+import apiClient from "./apiClient"; // Imports the *already configured* client
 
 // --------- Authentication Functions ---------
 // * Function login(username, password)
@@ -29,6 +10,7 @@ export const login = async (username, password) => {
 
     if (response.data.access) {
       localStorage.setItem("accessToken", response.data.access);
+      localStorage.setItem("refreshToken", response.data.refresh);
     }
     return response.data;
   } catch (error) {
@@ -39,6 +21,7 @@ export const login = async (username, password) => {
 
 export const logout = () => {
   localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
 };
 
 // --------- WhiteBoard Functions ---------

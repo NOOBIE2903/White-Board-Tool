@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import * as apiService from "../api/apiService";
+import apiClient from "../api/apiClient";
 
 function DashboardPage() {
   const [whiteboards, setWhiteboards] = useState([]);
@@ -8,10 +9,9 @@ function DashboardPage() {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
-  // ✅ Check login status on page load
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
-    const userData = localStorage.getItem("user"); // optional, if you store user info
+    const userData = localStorage.getItem("user");
 
     if (token) {
       setUser(JSON.parse(userData || "{}"));
@@ -19,30 +19,56 @@ function DashboardPage() {
     } else {
       setUser(null);
     }
+    console.log(token);
   }, []);
 
-  // ✅ Fetch whiteboards only when logged in
+  const createNewWhiteBoard = async () => {
+    const token = localStorage.getItem("accessToken");
+    try {
+      const res = await apiClient.post(
+        "/whiteboards/",
+        { name: newBoardName || "Untitled Board" },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const boardID = res.data.id;
+      if (!boardID) throw new Error("No board id in response");
+      window.location.reload();
+      // navigate("/");
+    } catch (error) {
+      console.error("Error creating whiteboard:", error);
+      if (error.response && error.response.status === 401) {
+        navigate("/login"); 
+      }
+    }
+  };
+
   const fetchWhiteboards = async () => {
     try {
       const data = await apiService.getWhiteboards();
       setWhiteboards(data);
     } catch (error) {
       console.error("Error fetching whiteboards:", error);
+      if (error.response && error.response.status === 401) {
+        navigate("/login"); 
+      }
     }
   };
 
-  const handleCreateBoard = async (e) => {
-    e.preventDefault();
-    if (!newBoardName.trim()) return;
+  // const handleCreateBoard = async (e) => {
+  //   e.preventDefault();
+  //   if (!newBoardName.trim()) return;
 
-    try {
-      const newBoard = await apiService.createWhiteboard(newBoardName);
-      setWhiteboards([...whiteboards, newBoard]);
-      setNewBoardName("");
-    } catch (error) {
-      console.error("Error creating whiteboard:", error);
-    }
-  };
+  //   try {
+  //     const newBoard = await apiService.createWhiteboard(newBoardName);
+  //     setWhiteboards([...whiteboards, newBoard]);
+  //     setNewBoardName("");
+  //   } catch (error) {
+  //     console.error("Error creating whiteboard:", error);
+  //   }
+  // };
 
   const handleLogout = () => {
     localStorage.removeItem("accessToken");
@@ -96,7 +122,10 @@ function DashboardPage() {
           <div className="mb-12 p-6 bg-white/10 backdrop-blur-md rounded-xl shadow-lg border border-white/20">
             {/* <h1>Welcome {user}</h1> */}
             <form
-              onSubmit={handleCreateBoard}
+              onSubmit={(e) => {
+                e.preventDefault();
+                createNewWhiteBoard();
+              }}
               className="flex flex-col sm:flex-row gap-4"
             >
               <input
@@ -133,6 +162,7 @@ function DashboardPage() {
               {whiteboards.map((board) => (
                 <div
                   key={board.id}
+                  // to={`/whiteboard/${board.id}`}
                   className="
                     block p-6 h-48 rounded-xl
                     bg-white/10 backdrop-blur-md shadow-lg
