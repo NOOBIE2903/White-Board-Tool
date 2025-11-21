@@ -38,13 +38,8 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
                 print(f"⚠️ Unknown action received: {action}")
                 return
 
-            payload = (
-                data.get('payload')
-                or data.get('element')
-                or data.get('draw')
-                or data.get('message')
-            )
-
+            payload = data.get("payload")
+            
             user = data.get("user", "Anonymous")
 
             if action == "add_element":

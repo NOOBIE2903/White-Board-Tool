@@ -11,6 +11,8 @@ export const login = async (username, password) => {
     if (response.data.access) {
       localStorage.setItem("accessToken", response.data.access);
       localStorage.setItem("refreshToken", response.data.refresh);
+      // console.log(response)
+      localStorage.setItem("user", username);
     }
     return response.data;
   } catch (error) {

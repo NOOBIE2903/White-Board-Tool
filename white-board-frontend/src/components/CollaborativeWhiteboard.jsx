@@ -2,6 +2,7 @@ import React, { act, useEffect, useRef, useState } from "react";
 import { Stage, Layer, Rect, Line, Circle } from "react-konva";
 import { useParams } from "react-router-dom";
 import { getWhiteboardDetails } from "../api/apiService";
+import toast from "react-hot-toast";
 
 function CollaborativeWhiteboard() {
   const { boardId } = useParams();
@@ -22,6 +23,8 @@ function CollaborativeWhiteboard() {
   const [actionIndex, setActionIndex] = useState(0);
   const currentDrawingId = useRef();
   const [redoStack, setRedoStack] = useState([]);
+  const [copy, setCopy] = useState(false);
+  const user = localStorage.getItem("user");
 
   const makeId = () =>
     typeof crypto !== "undefined" && crypto.randomUUID
@@ -29,6 +32,7 @@ function CollaborativeWhiteboard() {
       : `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
   // 🟢 Load whiteboard details on mount
+
   useEffect(() => {
     if (!boardId) return;
     const fetchWhiteboard = async () => {
@@ -99,7 +103,10 @@ function CollaborativeWhiteboard() {
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
-        JSON.stringify({ action: "add_element", element: newElement })
+        JSON.stringify({
+          action: "add_element",
+          payload: newElement,
+        })
       );
     }
   };
@@ -157,7 +164,6 @@ function CollaborativeWhiteboard() {
   };
   const handleMouseUp = () => {
     if (tool === "pen" || tool === "eraser") {
-
       setActions((prev) => [...prev, newAction]);
 
       setActionIndex((prev) => prev + 1);
@@ -206,14 +212,40 @@ function CollaborativeWhiteboard() {
     }
   };
 
-  console.log(redoStack);
-  console.log(actionIndex);
+  const textToCopy = `${window.location.origin}/whiteboard/${boardId}`;
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+
+      toast.success("Link copied to clipboard!", {
+        icon: "🔗",
+        style: {
+          border: "1px solid #10B981",
+          padding: "16px",
+          color: "#047857",
+        },
+      });
+    } catch (err) {
+      console.error("Failed to copy text: ", err);
+
+      toast.error("Could not copy link. Please try again.", {
+        duration: 5000,
+      });
+    }
+  };
+
+  // console.log(redoStack);
+  // console.log(actionIndex);
 
   // 🟢 Chat Sending
   const sendChat = () => {
     if (message.trim() && wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
-        JSON.stringify({ action: "chat", message: message, user: "User1" })
+        JSON.stringify({
+          action: "chat",
+          payload: message,
+          user: user,
+        })
       );
       setMessage("");
     }
@@ -263,6 +295,7 @@ function CollaborativeWhiteboard() {
           >
             ↪️ Redo
           </button>
+          <button onClick={handleCopy}>{copy ? "Copied!" : "Copy Link"}</button>
         </div>
 
         <Stage

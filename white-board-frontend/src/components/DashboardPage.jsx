@@ -6,15 +6,15 @@ import apiClient from "../api/apiClient";
 function DashboardPage() {
   const [whiteboards, setWhiteboards] = useState([]);
   const [newBoardName, setNewBoardName] = useState("");
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState();
   const navigate = useNavigate();
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
-    const userData = localStorage.getItem("user");
+    setUser(localStorage.getItem("user"));
 
     if (token) {
-      setUser(JSON.parse(userData || "{}"));
+      setUser(JSON.parse(user || "{}"));
       fetchWhiteboards();
     } else {
       setUser(null);
