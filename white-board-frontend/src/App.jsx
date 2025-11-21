@@ -8,6 +8,7 @@ import Login from './components/login';
 import DashboardPage from './components/DashboardPage';
 import WhiteboardPage from './components/WhiteBoardPage';
 import CollaborativeWhiteboard from './components/CollaborativeWhiteboard';
+import SignUp from './components/Signup';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
 
         <main>
           <Routes>
+            <Route path="/signup" element={<SignUp />} />
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<DashboardPage />} />
             <Route path="/whiteboard/:id" element={<WhiteboardPage />} />

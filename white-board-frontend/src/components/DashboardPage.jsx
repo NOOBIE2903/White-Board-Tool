@@ -81,6 +81,10 @@ function DashboardPage() {
     navigate("/login");
   };
 
+  const handleSignup = () => {
+    navigate("/signup");
+  };
+
   return (
     <div className="max-w-7xl mx-auto bg-slate-600 p-8 min-h-screen text-white">
       {/* Header with login/logout button */}
@@ -101,6 +105,12 @@ function DashboardPage() {
             Login
           </button>
         )}
+        <button
+            onClick={handleSignup}
+            className="px-5 py-2 rounded-md bg-green-600 hover:bg-green-500 text-white font-semibold transition"
+          >
+            Signup
+          </button>
       </div>
 
       {/* If not logged in */}
@@ -109,12 +119,6 @@ function DashboardPage() {
           <p className="text-lg text-gray-200 mb-6">
             Please log in to access your whiteboards.
           </p>
-          <button
-            onClick={handleLogin}
-            className="px-6 py-3 bg-indigo-600 rounded-md font-semibold hover:bg-indigo-500 transition"
-          >
-            Go to Login
-          </button>
         </div>
       ) : (
         <>

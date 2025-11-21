@@ -1,7 +1,7 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
-from .models import WhiteBoard
+from .models import WhiteBoard, WhiteBoardElement, WhiteBoardChat
 
 class WhiteboardConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -16,10 +16,15 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
             return
 
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
-
         await self.accept()
         print(f"✅ Connected to whiteboard: {self.board_id}")
 
+        chats = await self.get_chat_history() 
+        await self.send(json.dumps({
+            "action": "chat_history",
+            "payload": chats
+        }))
+        
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
         print(f"❌ Disconnected from whiteboard: {self.board_id}")
@@ -40,18 +45,50 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
                 or data.get('message')
             )
 
+            user = data.get("user", "Anonymous")
+
+            if action == "add_element":
+                await self.save_element(payload)
+
+            if action == "chat":
+                await self.save_chat(user, payload)
+
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
-                    'type': 'whiteboard_action',
-                    'action': action,
-                    'payload': payload,
-                    'user': data.get('user', 'Anonymous'),
+                    "type": "whiteboard_action",
+                    "action": action,
+                    "payload": payload,
+                    "user": user,
                 }
             )
 
         except Exception as e:
             print("❌ Error in receive:", e)
+            
+    @sync_to_async
+    def save_element (self, payload):
+        WhiteBoardElement.objects.create(
+            whiteboard=self.board,
+            element_type=payload.get("element_type"),
+            data=payload.get("data", {})
+        )
+       
+    @sync_to_async
+    def save_chat (self, user, message):
+        WhiteBoardChat.objects.create(
+            whiteboard=self.board,
+            user=user,
+            message=message
+        )
+        
+    @sync_to_async
+    def get_chat_history(self):
+        chats = WhiteBoardChat.objects.filter(whiteboard = self.board).order_by("timestamp")
+        return [
+            {"user": c.user, "text": c.message, "timestamp": str(c.timestamp)}
+            for c in chats
+        ]
 
     async def whiteboard_action(self, event):
         await self.send(

@@ -24,6 +24,20 @@ export const logout = () => {
   localStorage.removeItem("refreshToken");
 };
 
+export const signUp = async (username, email, password) => {
+  try {
+    const response = await apiClient.post("/users/", {
+      username,
+      email,
+      password
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Signup error:", error);
+    throw error;
+  }
+};
+
 // --------- WhiteBoard Functions ---------
 
 /**

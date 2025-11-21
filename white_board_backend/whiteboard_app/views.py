@@ -1,8 +1,20 @@
 from rest_framework import viewsets, permissions
 from .models import WhiteBoard
-from .serializers import WhiteBoardSerializer
+from .serializers import WhiteBoardSerializer, UserSerializer
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from django.contrib.auth.models import User
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all().order_by('-date_joined')
+    serializer_class = UserSerializer
+
+    def get_permissions(self):
+        if self.action == 'create':   
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
+
+    
 
 class WhiteBoardViewSet(viewsets.ModelViewSet):
     serializer_class = WhiteBoardSerializer
@@ -13,6 +25,7 @@ class WhiteBoardViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
         
 # @api_view(['POST'])
 # def create_whiteboard(request):

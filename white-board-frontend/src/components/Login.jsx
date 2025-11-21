@@ -21,6 +21,8 @@ function Login() {
     }
   };
 
+  // console.log(password);
+
   return (
     // Perspective container for the 3D effect
     <div className="flex justify-center [perspective:1000px] bg-slate-600">

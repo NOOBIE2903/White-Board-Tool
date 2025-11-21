@@ -2,7 +2,6 @@ import React, { act, useEffect, useRef, useState } from "react";
 import { Stage, Layer, Rect, Line, Circle } from "react-konva";
 import { useParams } from "react-router-dom";
 import { getWhiteboardDetails } from "../api/apiService";
-import toast from "react-hot-toast";
 
 function CollaborativeWhiteboard() {
   const { boardId } = useParams();
@@ -29,6 +28,7 @@ function CollaborativeWhiteboard() {
       ? crypto.randomUUID()
       : `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
+  // 🟢 Load whiteboard details on mount
   useEffect(() => {
     if (!boardId) return;
     const fetchWhiteboard = async () => {
@@ -39,13 +39,12 @@ function CollaborativeWhiteboard() {
     fetchWhiteboard();
   }, [boardId]);
 
+  // 🟢 Initialize WebSocket
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(
       `${protocol}://localhost:8000/ws/whiteboard/${boardId}/`
     );
-
-    console.log(boardId);
 
     socket.onopen = () => console.log("✅ Connected to WebSocket");
     socket.onclose = () => console.log("❌ Disconnected from WebSocket");
@@ -77,6 +76,7 @@ function CollaborativeWhiteboard() {
     return () => socket.close();
   }, [boardId]);
 
+  // 🟢 Rectangle Tool
   const addRectangle = () => {
     const newElement = {
       id: Date.now(),
@@ -157,6 +157,7 @@ function CollaborativeWhiteboard() {
   };
   const handleMouseUp = () => {
     if (tool === "pen" || tool === "eraser") {
+
       setActions((prev) => [...prev, newAction]);
 
       setActionIndex((prev) => prev + 1);
@@ -205,17 +206,6 @@ function CollaborativeWhiteboard() {
     }
   };
 
-  const handleCopyClick = () => {
-    navigator.clipboard
-      .writeText(window.location.href)
-      .then(() => {
-        toast.success("Link Copied !");
-      })
-      .catch((err) => {
-        toast.error("Failed to copy link.");
-      });
-  };
-
   console.log(redoStack);
   console.log(actionIndex);
 
@@ -229,6 +219,7 @@ function CollaborativeWhiteboard() {
     }
   };
 
+  // 🟢 Loading state
   if (!board) return <div className="text-white text-center">Loading...</div>;
 
   return (
@@ -262,21 +253,15 @@ function CollaborativeWhiteboard() {
           </button>
           <button
             onClick={undoLast}
-            className="px-3 py-1 rounded bg-slate-600 hover:bg-slate-700 transition-colors"
+            className="px-3 py-1 rounded bg-yellow-600"
           >
             ↩️ Undo
           </button>
           <button
             onClick={redoLast}
-            className="px-3 py-1 rounded bg-slate-600 hover:bg-slate-700 transition-colors"
+            className="bg-orange-600 px-3 py-1 rounded"
           >
             ↪️ Redo
-          </button>
-          <button
-            onClick={handleCopyClick}
-            className="px-3 py-1 rounded bg-slate-600 hover:bg-slate-700 transition-colors"
-          >
-            🔗 Copy Board Link
           </button>
         </div>
 
@@ -372,9 +357,10 @@ function CollaborativeWhiteboard() {
 
 export default CollaborativeWhiteboard;
 
+// fix the undo button logic
 // save the chats
+// add redo button
 // add other shoaes
 // add pen cursor
 // add colors and stroke width options
 // add size for eraser and for pen
-// add a hash value for the url so that the URL is unique and can be shared among users and they can interact with each other

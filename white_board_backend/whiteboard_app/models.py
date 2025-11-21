@@ -29,3 +29,13 @@ class WhiteBoardElement(models.Model):
 
     def __str__(self):
         return f"{self.get_element_type_display()} on whiteboard {self.whiteboard.id}"
+    
+
+class WhiteBoardChat(models.Model):
+    whiteboard = models.ForeignKey(WhiteBoard, on_delete=models.CASCADE, related_name="chats")
+    user = models.CharField(max_length=255)
+    message = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user}: {self.message[:20]}"
