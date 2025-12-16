@@ -8,6 +8,8 @@ export const login = async (username, password) => {
   try {
     const response = await apiClient.post("/token/", { username, password });
 
+    // const { access, refresh } = response.data;
+
     if (response.data.access) {
       localStorage.setItem("accessToken", response.data.access);
       localStorage.setItem("refreshToken", response.data.refresh);

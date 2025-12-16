@@ -25,6 +25,12 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
             "payload": chats
         }))
         
+        elements = await self.get_elements_history()
+        await self.send(json.dumps({
+            "action": "elements_history",
+            "payload": elements
+        }))
+        
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
         print(f"❌ Disconnected from whiteboard: {self.board_id}")
@@ -34,7 +40,7 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
             data = json.loads(text_data)
             action = data.get('action')
 
-            if action not in ['add_element', 'draw', 'chat']:
+            if action not in ['add_element', 'draw', 'chat', 'delete_element']:
                 print(f"⚠️ Unknown action received: {action}")
                 return
 
@@ -42,11 +48,16 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
             
             user = data.get("user", "Anonymous")
 
+            print(payload.get("id"))
+            
             if action == "add_element":
                 await self.save_element(payload)
 
             if action == "chat":
                 await self.save_chat(user, payload)
+                
+            if action == "delete_element":
+                await self.delete_element(payload)
 
             await self.channel_layer.group_send(
                 self.room_group_name,
@@ -63,18 +74,19 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
             
     @sync_to_async
     def save_element (self, payload):
+        # print(payload)
         WhiteBoardElement.objects.create(
             whiteboard=self.board,
-            element_type=payload.get("element_type"),
+            element_type=payload.get("type"),
             data=payload.get("data", {})
         )
        
     @sync_to_async
-    def save_chat (self, user, message):
+    def save_chat (self, user, payload):
         WhiteBoardChat.objects.create(
             whiteboard=self.board,
             user=user,
-            message=message
+            message=payload.get("text", "")
         )
         
     @sync_to_async
@@ -84,6 +96,28 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
             {"user": c.user, "text": c.message, "timestamp": str(c.timestamp)}
             for c in chats
         ]
+        
+    @sync_to_async
+    def get_elements_history(self):
+        elements = WhiteBoardElement.objects.filter(
+            whiteboard = self.board
+        )
+        print(elements)
+        return [
+            {
+                "element_id": str(el.element_id),
+                "type": el.element_type,
+                "data": el.data
+            }
+            for el in elements
+        ]
+        
+    @sync_to_async
+    def delete_element(self, payload):
+        # print(payload)
+        WhiteBoardElement.objects.filter(
+            element_id=payload.get("id")
+        ).delete()
 
     async def whiteboard_action(self, event):
         await self.send(

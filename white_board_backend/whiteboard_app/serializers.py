@@ -3,10 +3,10 @@ from rest_framework import serializers
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
-
+    print("***************************************")
     class Meta:
         model = User
-        fields = ('id', 'name', 'username', 'email', 'password')
+        fields = ('id', 'username', 'email', 'password')
 
     def create(self, validated_data):
         password = validated_data.pop('password')
@@ -19,7 +19,7 @@ class UserSerializer(serializers.ModelSerializer):
 class WhiteBoardElementSerializer(serializers.ModelSerializer):
     class Meta:
         model = WhiteBoardElement
-        fields = ['id', 'name', 'element_id', 'element_type', 'data']
+        fields = ['id', 'element_id', 'element_type', 'data']
 
 class WhiteBoardSerializer(serializers.ModelSerializer):
     owner = serializers.ReadOnlyField(source='owner.username')

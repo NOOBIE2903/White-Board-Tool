@@ -8,6 +8,8 @@ from django.contrib.auth.models import User
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserSerializer
+    
+    print("-----------------------------------")
 
     def get_permissions(self):
         if self.action == 'create':   
