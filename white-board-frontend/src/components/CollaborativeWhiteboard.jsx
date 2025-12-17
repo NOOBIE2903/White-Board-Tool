@@ -154,7 +154,7 @@ function CollaborativeWhiteboard() {
           break;
         case "chat_history":
           setChatMessages(data.payload);
-          // break;
+        break;
         case "delete_element":
           // setElements(prev =>
           //   prev.filter(el => el.element_id !== data.payload.element_id)
@@ -164,8 +164,35 @@ function CollaborativeWhiteboard() {
           );
           break;
         case "elements_history":
-          setElements(data.payload)
+          setElements(
+            data.payload.map(el => ({
+              ...el,
+              id: el.element_id,
+            }))
+          );
           break;
+        case "undo":
+          if (data.payload.type == "delete") {
+            setElements((prev) =>
+              prev.filter((el) => el.element_id !== data.payload.element_id)
+            );
+          }
+
+          if (data.payload.type === "add") {
+            setElements((prev) => [...prev, data.payload.element]);
+          }
+          break
+          case "redo":
+            if (data.payload.type === "add") {
+              setElements(prev => [...prev, data.payload.element]);
+            }
+
+            if (data.payload.type === "delete") {
+              setElements(prev =>
+                prev.filter(el => el.element_id !== data.payload.element_id)
+              );
+            }
+            break;
         default:
           break;
       }
@@ -391,15 +418,22 @@ function CollaborativeWhiteboard() {
   const handleMouseUp = () => {
     erasingRef.current = false;
     if (tool === "pen") {
-      const finalLine = elements.find((e) => e.id === currentDrawingId.current);
+      const finalLine = elements.find((e) => e.element_id === currentDrawingId.current);
+
+      if (!finalLine) return;
 
       wsRef.current?.send(
         JSON.stringify({
-          action: "draw",
-          payload: finalLine,
+          action: "draw_end",
+          payload: {
+            element_id: finalLine.element_id,
+            data: finalLine.data,
+          },
           user: user || "Anonymous",
         })
       );
+
+      currentDrawingId.current = null;
 
       setActions((prev) => [
         ...prev,
@@ -444,38 +478,57 @@ function CollaborativeWhiteboard() {
     }
   };
 
+  // const undoLast = () => {
+  //   if (!actions.length) return;
+
+  //   const last = actions[actions.length - 1];
+
+  //   setActions((prev) => prev.slice(0, -1));
+  //   setRedoStack((prev) => [...prev, last]);
+
+  //   if (last.type === "add") {
+  //     setElements((prev) => prev.filter((el) => el.element_id !== last.element.element_id));
+  //   }
+
+  //   if (last.type === "delete") {
+  //     setElements((prev) => [...prev, last.element]);
+  //   }
+  // };
+
   const undoLast = () => {
-    if (!actions.length) return;
-
-    const last = actions[actions.length - 1];
-
-    setActions((prev) => prev.slice(0, -1));
-    setRedoStack((prev) => [...prev, last]);
-
-    if (last.type === "add") {
-      setElements((prev) => prev.filter((el) => el.element_id !== last.element.element_id));
-    }
-
-    if (last.type === "delete") {
-      setElements((prev) => [...prev, last.element]);
-    }
+    wsRef.current?.send(
+      JSON.stringify({
+        action: "undo",
+        user: user || "Anonymous",
+      })
+    );
   };
 
+  // const redoLast = () => {
+  //   if (!redoStack.length) return;
+
+  //   const last = redoStack[redoStack.length - 1];
+
+  //   setRedoStack((prev) => prev.slice(0, -1));
+  //   setActions((prev) => [...prev, last]);
+
+  //   if (last.type === "add") {
+  //     setElements((prev) => [...prev, last.element]);
+  //   }
+
+  //   if (last.type === "delete") {
+  //     setElements((prev) =>
+  //       prev.filter((el) => el.element_id !== last.element.element_id)
+  //     );
+  //   }
+  // };
   const redoLast = () => {
-    if (!redoStack.length) return;
-
-    const last = redoStack[redoStack.length - 1];
-
-    setRedoStack((prev) => prev.slice(0, -1));
-    setActions((prev) => [...prev, last]);
-
-    if (last.type === "add") {
-      setElements((prev) => [...prev, last.element]);
-    }
-
-    if (last.type === "delete") {
-      setElements((prev) => prev.filter((el) => el.element_id !== last.element.element_id));
-    }
+    wsRef.current?.send(
+      JSON.stringify({
+        action: "redo",
+        user: user || "Anonymous",
+      })
+    );
   };
 
   const textToCopy = `${window.location.origin}/collab/${boardId}`;
@@ -513,7 +566,7 @@ function CollaborativeWhiteboard() {
         JSON.stringify({
           action: "chat",
           payload: {
-            text: message
+            text: message,
           },
           user: user,
         })

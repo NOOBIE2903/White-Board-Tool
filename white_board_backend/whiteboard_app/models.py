@@ -39,3 +39,20 @@ class WhiteBoardChat(models.Model):
 
     def __str__(self):
         return f"{self.user}: {self.message[:20]}"
+
+class WhiteBoardAction (models.Model):
+    ACTION_TYPE = [
+        ("add", "Add"),
+        ("delete", "Delete")
+    ]
+    
+    whiteboard = models.ForeignKey(WhiteBoard, on_delete=models.CASCADE)
+    action_type = models.CharField(max_length=20, choices=ACTION_TYPE)
+    element_snapshot = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+class WhiteBoardRedoAction(models.Model):
+    whiteboard = models.ForeignKey(WhiteBoard, on_delete=models.CASCADE)
+    action_type = models.CharField(max_length=10)
+    element_snapshot = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
