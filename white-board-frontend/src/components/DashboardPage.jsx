@@ -19,7 +19,7 @@ function DashboardPage() {
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     const storedUser = localStorage.getItem("user");
-
+    console.log(storedUser)
     if (token && storedUser) {
       setUser(JSON.parse(storedUser));
       fetchWhiteboards();
