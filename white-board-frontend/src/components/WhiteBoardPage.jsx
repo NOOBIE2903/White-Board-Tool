@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { getWhiteboardDetails } from '../api/apiService';
-import WhiteboardCanvas from './WhiteBoardCanvas';
+import WhiteboardCanvas from './WhiteboardCanvas';
 
 function WhiteboardPage() {
   const { id } = useParams();
