@@ -4,7 +4,7 @@ import { Toaster } from 'react-hot-toast';
 // import './A'
 
 // Import components and pages
-import Login from './components/login';
+import Login from './components/Login';
 import DashboardPage from './components/DashboardPage';
 import WhiteboardPage from './components/WhiteBoardPage';
 import CollaborativeWhiteboard from './components/CollaborativeWhiteboard';

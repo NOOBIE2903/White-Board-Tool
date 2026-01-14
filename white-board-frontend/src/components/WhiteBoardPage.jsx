@@ -10,7 +10,7 @@ function WhiteboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [whiteboardData, setWhiteboardData] = useState(null)
-  const [board, setBoard] = useState(null)
+  // const [board, setBoard] = useState(null)
   const [owner, setOwner] = useState(null)
 
   useEffect (() => {
@@ -18,9 +18,9 @@ function WhiteboardPage() {
         try {
             setLoading (true);
             const data = await getWhiteboardDetails(id);
-            setBoard(data);
+            // setBoard(data);
             setWhiteboardData(data);
-            setLoading(false);
+            // setLoading(false);
             setOwner(data.owner);
         }
         catch (error) {
@@ -55,7 +55,7 @@ function WhiteboardPage() {
       <h2 className="text-3xl font-bold mb-4">
         {whiteboardData? whiteboardData.name : 'Whiteboard'}
         {owner ? (
-          <span className="text-3xl font-normal ml-4 text-black-200 uppercase">
+          <span className="text-3xl font-normal ml-4 text-gray-200 uppercase">
             ({owner})
           </span>
         ) : null}
@@ -76,7 +76,7 @@ function WhiteboardPage() {
       </div> */}
 
       <div>
-        <h2>{board.name} ({board.owner})</h2>
+        <h2>(board ?? {board.name} ({board.owner}))</h2>
         <WhiteboardCanvas elements={board.elements} />
       </div>
     </div>

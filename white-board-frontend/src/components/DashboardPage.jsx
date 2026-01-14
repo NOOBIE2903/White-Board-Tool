@@ -11,36 +11,40 @@ function DashboardPage() {
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
-    setUser(localStorage.getItem("user"));
-
     if (token) {
-      setUser(JSON.parse(user || "{}"));
+      navigate("/");
+    }
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem("accessToken");
+    const storedUser = localStorage.getItem("user");
+
+    if (token && storedUser) {
+      setUser(JSON.parse(storedUser));
       fetchWhiteboards();
     } else {
       setUser(null);
     }
-    console.log(token);
   }, []);
 
   const createNewWhiteBoard = async () => {
     const token = localStorage.getItem("accessToken");
     try {
-      const res = await apiClient.post(
-        "/whiteboards/",
-        { name: newBoardName || "Untitled Board" },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const res = await apiClient.post("/whiteboards/", {
+        name: newBoardName || "Untitled Board",
+      });
 
       const boardID = res.data.id;
       if (!boardID) throw new Error("No board id in response");
-      window.location.reload();
+      fetchWhiteboards();
+      setNewBoardName("");
+      // window.location.reload();
       // navigate("/");
     } catch (error) {
       console.error("Error creating whiteboard:", error);
       if (error.response && error.response.status === 401) {
-        navigate("/login"); 
+        navigate("/login");
       }
     }
   };
@@ -52,7 +56,7 @@ function DashboardPage() {
     } catch (error) {
       console.error("Error fetching whiteboards:", error);
       if (error.response && error.response.status === 401) {
-        navigate("/login"); 
+        navigate("/login");
       }
     }
   };
@@ -105,12 +109,14 @@ function DashboardPage() {
             Login
           </button>
         )}
-        <button
+        {!user && (
+          <button
             onClick={handleSignup}
-            className="px-5 py-2 rounded-md bg-green-600 hover:bg-green-500 text-white font-semibold transition"
+            className="px-5 py-2 rounded-md bg-green-600 hover:bg-green-500"
           >
             Signup
           </button>
+        )}
       </div>
 
       {/* If not logged in */}

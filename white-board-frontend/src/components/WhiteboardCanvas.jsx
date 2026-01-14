@@ -2,11 +2,30 @@ import React from "react";
 import { Stage, Rect, Layer, Text, Line } from "react-konva";
 
 const WhiteboardCanvas = ({ elements }) => {
+  const [size, setSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight - 100,
+  });
+
+  useEffect(() => {
+    const handleResize = () =>
+      setSize({
+        width: window.innerWidth,
+        height: window.innerHeight - 100,
+      });
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  
+
   return (
-    <Stage width={window.innerWidth} height={window.innerHeight - 100}>
+    <Stage width={size.width} height={size.height}>
       <Layer>
         {elements.map((el) => {
-          switch (el.element_type) {
+          const type = el.element_type || el.type;
+          switch (type) {
             case "rectangle":
               return (
                 <React.Fragment key={el.element_id}>
@@ -27,7 +46,7 @@ const WhiteboardCanvas = ({ elements }) => {
                       y={el.data.y + 10}
                       fontSize={el.data.fontSize || 14}
                       fontFamily={el.data.fontFamily || "Arial"}
-                      fill="#000"
+                      fill={el.data.textColor || "#fff"}
                       width={el.data.width - 20}
                     />
                   )}

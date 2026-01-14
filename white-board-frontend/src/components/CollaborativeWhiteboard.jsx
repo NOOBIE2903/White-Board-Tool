@@ -94,9 +94,10 @@ function CollaborativeWhiteboard() {
 
   // 🟢 Initialize WebSocket
   useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const WS_BASE = import.meta.env.VITE_WS_BASE_URL;
+    // const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(
-      `${protocol}://localhost:8000/ws/whiteboard/${boardId}/`
+      `${WS_BASE}/ws/whiteboard/${boardId}/`
     );
 
     socket.onopen = () => console.log("✅ Connected to WebSocket");

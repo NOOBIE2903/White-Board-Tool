@@ -1,4 +1,5 @@
 import apiClient from "./apiClient"; // Imports the *already configured* client
+import jwt_decode from "jwt-decode";
 
 // --------- Authentication Functions ---------
 // * Function login(username, password)
@@ -11,10 +12,11 @@ export const login = async (username, password) => {
     // const { access, refresh } = response.data;
 
     if (response.data.access) {
+      const decoded = jwt_decode(response.data.access);
+      localStorage.setItem("user", JSON.stringify(decoded));
       localStorage.setItem("accessToken", response.data.access);
       localStorage.setItem("refreshToken", response.data.refresh);
       // console.log(response)
-      localStorage.setItem("user", username);
     }
     return response.data;
   } catch (error) {
@@ -24,8 +26,7 @@ export const login = async (username, password) => {
 };
 
 export const logout = () => {
-  localStorage.removeItem("accessToken");
-  localStorage.removeItem("refreshToken");
+  localStorage.clear();
 };
 
 export const signUp = async (username, email, password) => {

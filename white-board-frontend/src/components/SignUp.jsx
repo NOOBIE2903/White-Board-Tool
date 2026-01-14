@@ -45,9 +45,17 @@ function SignUp() {
       console.error(err);
 
       if (err.response?.data) {
-        const backendError =
-          Object.values(err.response.data)?.[0] || "Signup failed.";
-        setError(backendError);
+        const data = err.response?.data;
+        setError(
+          data?.detail ||
+          data?.username?.[0] ||
+          data?.email?.[0] ||
+          data?.password?.[0] ||
+          "Signup failed."
+        );
+        // const backendError =
+        //   Object.values(err.response.data)?.[0] || "Signup failed.";
+        // setError(backendError);
       } else {
         setError("Unable to sign up. Try again.");
       }
