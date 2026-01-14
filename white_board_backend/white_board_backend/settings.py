@@ -99,11 +99,16 @@ CORS_ALLOW_METHODS = [
 CSRF_COOKIE_SECURE = False
 CSRF_COOKIE_HTTPONLY = False
 
-
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://white-board-tool.onrender.com",
+    "https://white-board-tool-nu.vercel.app",  # 👈 ADD THIS
+]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://white-board-tool-nu.vercel.app",  # 👈 ADD THIS
 ]
 
 
