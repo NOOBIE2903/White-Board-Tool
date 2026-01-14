@@ -8,7 +8,7 @@ import Login from './components/Login';
 import DashboardPage from './components/DashboardPage';
 import WhiteboardPage from './components/WhiteBoardPage';
 import CollaborativeWhiteboard from './components/CollaborativeWhiteboard';
-import SignUp from './components/Signup';
+import SignUp from './components/SignUp';
 
 function App() {
   return (
