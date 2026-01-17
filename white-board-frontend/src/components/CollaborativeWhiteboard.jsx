@@ -265,14 +265,7 @@ function CollaborativeWhiteboard() {
 };
 
   const handleMouseMove = (e) => {
-  // 🚨 STOP drawing if right button is NOT pressed
-  if (
-    !isDrawing.current ||
-    ((tool === "pen" || tool === "eraser") && e.evt.buttons !== 2)
-  ) {
-    isDrawing.current = false;
-    return;
-  }
+  if (!isDrawing.current) return;
 
   const pos = e.target.getStage().getPointerPosition();
   setCursor({ x: pos.x, y: pos.y });
@@ -333,7 +326,7 @@ function CollaborativeWhiteboard() {
         return true;
       });
 
-      // ✅ KEEP redoStack + actions LOGIC UNCHANGED
+      // 🔁 redoStack + actions untouched
       if (deleted) {
         erasingRef.current = true;
 
@@ -376,6 +369,7 @@ function CollaborativeWhiteboard() {
     });
   }
 };
+
 
   // const newAction = {
   //   id: actionIndex + 1,
