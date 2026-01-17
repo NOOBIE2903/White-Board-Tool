@@ -217,7 +217,7 @@ function CollaborativeWhiteboard() {
   const button = e.evt.button; // 0 = left, 2 = right
 
   // ✏️🧽 PEN / ERASER → RIGHT CLICK ONLY
-  if ((tool === "pen" || tool === "eraser") && button === 2) {
+  if ((tool === "pen" || tool === "eraser") && button === 0) {
     isDrawing.current = true;
 
     const pos = e.target.getStage().getPointerPosition();
@@ -608,7 +608,7 @@ function CollaborativeWhiteboard() {
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
-              onContextMenu={(e) => e.evt.preventDefault()}
+              // onContextMenu={(e) => e.evt.preventDefault()}
               style={{ background: "#1e293b" }}
             >
               <Layer>
