@@ -102,10 +102,10 @@ function CollaborativeWhiteboard() {
   // 🟢 Initialize WebSocket
   useEffect(() => {
     const WS_BASE = import.meta.env.VITE_WS_BASE_URL;
-    // const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const token = localStorage.getItem("accessToken");
+    const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(
-      `${WS_BASE}/ws/whiteboard/${boardId}/?token=${token}`
+      `${wsProtocol}://white-board-tool-backend.onrender.com/ws/whiteboard/${boardId}/?token=${token}`
     );
 
     socket.onopen = () => console.log("✅ Connected to WebSocket");
