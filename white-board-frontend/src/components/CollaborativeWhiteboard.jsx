@@ -26,7 +26,9 @@ function CollaborativeWhiteboard() {
   const [copy, setCopy] = useState(false);
   const [elements, setElements] = useState([]);
   const erasingRef = useRef(false);
-  const user = localStorage.getItem("user");
+  const [user, setUser] = useState("");
+  const username = "";
+  const chatEndRef = useRef(null);
 
   // const isPointInsideRect = (x, y, rect) => {
   //   return (
@@ -36,6 +38,11 @@ function CollaborativeWhiteboard() {
   //     y <= rect.y + rect.height
   //   );
   // };
+
+  useEffect(() => {
+    const username = localStorage.getItem("username");
+    setUser(username || "Anonymous");
+  }, []);
 
   const getKey = (el) => el.element_id;
 
@@ -96,8 +103,9 @@ function CollaborativeWhiteboard() {
   useEffect(() => {
     const WS_BASE = import.meta.env.VITE_WS_BASE_URL;
     // const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const token = localStorage.getItem("accessToken");
     const socket = new WebSocket(
-      `${WS_BASE}/ws/whiteboard/${boardId}/`
+      `${WS_BASE}/ws/whiteboard/${boardId}/?token=${token}`
     );
 
     socket.onopen = () => console.log("✅ Connected to WebSocket");
@@ -148,6 +156,7 @@ function CollaborativeWhiteboard() {
           );
           break;
         case "chat":
+          // setUser(data.user);
           setChatMessages((prev) => [
             ...prev,
             { user: data.user, text: data.payload.text },
@@ -155,7 +164,7 @@ function CollaborativeWhiteboard() {
           break;
         case "chat_history":
           setChatMessages(data.payload);
-        break;
+          break;
         case "delete_element":
           // setElements(prev =>
           //   prev.filter(el => el.element_id !== data.payload.element_id)
@@ -166,7 +175,7 @@ function CollaborativeWhiteboard() {
           break;
         case "elements_history":
           setElements(
-            data.payload.map(el => ({
+            data.payload.map((el) => ({
               ...el,
               id: el.element_id,
             }))
@@ -182,18 +191,18 @@ function CollaborativeWhiteboard() {
           if (data.payload.type === "add") {
             setElements((prev) => [...prev, data.payload.element]);
           }
-          break
-          case "redo":
-            if (data.payload.type === "add") {
-              setElements(prev => [...prev, data.payload.element]);
-            }
+          break;
+        case "redo":
+          if (data.payload.type === "add") {
+            setElements((prev) => [...prev, data.payload.element]);
+          }
 
-            if (data.payload.type === "delete") {
-              setElements(prev =>
-                prev.filter(el => el.element_id !== data.payload.element_id)
-              );
-            }
-            break;
+          if (data.payload.type === "delete") {
+            setElements((prev) =>
+              prev.filter((el) => el.element_id !== data.payload.element_id)
+            );
+          }
+          break;
         default:
           break;
       }
@@ -419,7 +428,9 @@ function CollaborativeWhiteboard() {
   const handleMouseUp = () => {
     erasingRef.current = false;
     if (tool === "pen") {
-      const finalLine = elements.find((e) => e.element_id === currentDrawingId.current);
+      const finalLine = elements.find(
+        (e) => e.element_id === currentDrawingId.current
+      );
 
       if (!finalLine) return;
 
@@ -563,159 +574,172 @@ function CollaborativeWhiteboard() {
   // 🟢 Chat Sending
   const sendChat = () => {
     if (message.trim() && wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log("----------------INSIDE------------------");
       wsRef.current.send(
         JSON.stringify({
           action: "chat",
           payload: {
             text: message,
           },
-          user: user,
         })
       );
       setMessage("");
     }
   };
 
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+  // console.log(currentUsername)
+
   // 🟢 Loading state
   if (!board && elements.length === 0)
     return <div className="text-white text-center">Loading...</div>;
 
   return (
-    <div className="p-4 bg-slate-800 rounded-xl text-white grid grid-cols-3 gap-4">
-      {/* LEFT SIDE - Whiteboard */}
-      <div className="col-span-2">
-        <div className="mb-2 flex gap-2">
-          <button
-            onClick={() => setTool("rectangle")}
-            className={`px-3 py-1 rounded ${
-              tool === "rectangle" ? "bg-indigo-600" : "bg-slate-600"
-            }`}
-          >
-            🟦 Rect
-          </button>
-          <button
-            onClick={() => setTool("pen")}
-            className={`px-3 py-1 rounded ${
-              tool === "pen" ? "bg-green-600" : "bg-slate-600"
-            }`}
-          >
-            ✏️ Pen
-          </button>
-          <button
-            onClick={() => setTool("eraser")}
-            className={`px-3 py-1 rounded ${
-              tool === "eraser" ? "bg-red-600" : "bg-slate-600"
-            }`}
-          >
-            🧽 Eraser
-          </button>
-          <button
-            onClick={undoLast}
-            className="px-3 py-1 rounded bg-yellow-600"
-          >
-            ↩️ Undo
-          </button>
-          <button
-            onClick={redoLast}
-            className="bg-orange-600 px-3 py-1 rounded"
-          >
-            ↪️ Redo
-          </button>
-          <button onClick={handleCopy}>{copy ? "Copied!" : "Copy Link"}</button>
+    <div className="p-4 bg-slate-800 rounded-xl text-white min-h-screen">
+      <div className="flex gap-4">
+        {/* LEFT SIDE - Whiteboard (Responsive) */}
+        <div className="flex-1 min-w-0 flex flex-col">
+          {/* Toolbar */}
+          <div className="mb-2 flex flex-wrap gap-2">
+            <button
+              onClick={() => setTool("rectangle")}
+              className={`px-3 py-1 rounded ${
+                tool === "rectangle" ? "bg-indigo-600" : "bg-slate-600"
+              }`}
+            >
+              🟦 Rect
+            </button>
+
+            <button
+              onClick={() => setTool("pen")}
+              className={`px-3 py-1 rounded ${
+                tool === "pen" ? "bg-green-600" : "bg-slate-600"
+              }`}
+            >
+              ✏️ Pen
+            </button>
+
+            <button
+              onClick={() => setTool("eraser")}
+              className={`px-3 py-1 rounded ${
+                tool === "eraser" ? "bg-red-600" : "bg-slate-600"
+              }`}
+            >
+              🧽 Eraser
+            </button>
+
+            <button
+              onClick={undoLast}
+              className="px-3 py-1 rounded bg-yellow-600"
+            >
+              ↩️ Undo
+            </button>
+
+            <button
+              onClick={redoLast}
+              className="px-3 py-1 rounded bg-orange-600"
+            >
+              ↪️ Redo
+            </button>
+
+            <button onClick={handleCopy}>
+              {copy ? "Copied!" : "Copy Link"}
+            </button>
+          </div>
+
+          {/* Canvas */}
+          <div className="flex-1 overflow-hidden rounded-lg border border-slate-600">
+            <Stage
+              width={window.innerWidth - 380}
+              height={window.innerHeight - 160}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              style={{ background: "#1e293b" }}
+            >
+              <Layer>
+                {elements.map((el) => {
+                  if (el.type === "rectangle") {
+                    return <Rect key={el.element_id} {...el.data} />;
+                  }
+
+                  if (el.type === "line") {
+                    return (
+                      <Line
+                        key={el.element_id}
+                        points={el.data.points}
+                        stroke={el.data.color}
+                        strokeWidth={el.data.strokeWidth}
+                        lineCap="round"
+                        lineJoin="round"
+                      />
+                    );
+                  }
+
+                  return null;
+                })}
+
+                {newRect && <Rect {...newRect} dash={[5, 5]} />}
+
+                {tool === "eraser" && (
+                  <Circle
+                    x={cursor.x}
+                    y={cursor.y}
+                    radius={10}
+                    fill="#1e993b"
+                    opacity={0.8}
+                  />
+                )}
+              </Layer>
+            </Stage>
+          </div>
         </div>
 
-        <Stage
-          width={800}
-          height={600}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          style={{ border: "2px solid #444", background: "#1e293b" }}
-        >
-          <Layer>
-            {elements.map((el) => {
-              if (el.type === "rectangle") {
-                return (
-                  <Rect
-                    key={el.element_id}
-                    x={el.data.x}
-                    y={el.data.y}
-                    width={el.data.width}
-                    height={el.data.height}
-                    stroke={el.data.stroke}
-                    fill={el.data.fill}
-                    strokeWidth={el.data.strokeWidth || 2}
-                  />
-                );
-              }
+        {/* RIGHT SIDE - Chat (FIXED SIZE) */}
+        <div className="w-[300px] h-[600px] shrink-0 flex flex-col bg-slate-700 rounded-xl shadow-xl">
+          {/* Header */}
+          <div className="px-4 py-3 border-b border-slate-600 flex justify-between">
+            <h3 className="font-semibold">💬 Live Chat</h3>
+            <span className="text-xs text-emerald-400">Online</span>
+          </div>
 
-              if (el.type === "line") {
-                return (
-                  <Line
-                    key={el.element_id}
-                    points={el.data.points}
-                    stroke={el.data.color}
-                    strokeWidth={el.data.strokeWidth}
-                    lineCap="round"
-                    lineJoin="round"
-                  />
-                );
-              }
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+            {chatMessages.map((m, i) => {
+              const isMe = m.user === user;
 
-              return null;
+              return (
+                <div key={i} className="flex justify-start">
+                  <div className="max-w-[85%] bg-slate-600 px-4 py-2 rounded-xl shadow">
+                    <div className="text-[11px] font-semibold opacity-80 mb-1">
+                      {isMe ? `(me) ${m.user}` : m.user}
+                    </div>
+                    <div className="break-words">{m.text}</div>
+                  </div>
+                </div>
+              );
             })}
+            <div ref={chatEndRef} />
+          </div>
 
-            {newRect && (
-              <Rect
-                x={newRect.x}
-                y={newRect.y}
-                width={newRect.width}
-                height={newRect.height}
-                stroke={newRect.stroke}
-                strokeWidth={2}
-                dash={[5, 5]} // preview while drawing
-              />
-            )}
-
-            {tool === "eraser" && (
-              <Circle
-                x={cursor.x}
-                y={cursor.y}
-                radius={10}
-                fill="#1e993b"
-                opacity={0.8}
-              />
-            )}
-          </Layer>
-        </Stage>
-      </div>
-
-      {/* RIGHT SIDE - Chat */}
-      <div
-        className="flex flex-col bg-slate-700 p-4 rounded-lg h-[600px] w-[300px]"
-        style={{ position: "relative", zIndex: 10 }}
-      >
-        <div className="flex-1 overflow-y-auto">
-          {chatMessages.map((m, i) => (
-            <p key={i}>
-              <b>{m.user}:</b> {m.text}
-            </p>
-          ))}
-        </div>
-
-        <div className="flex mt-2">
-          <input
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            className="flex-1 p-2 rounded text-black"
-            placeholder="Type message..."
-          />
-          <button
-            onClick={sendChat}
-            className="ml-2 bg-indigo-500 px-4 py-2 rounded"
-          >
-            Send
-          </button>
+          {/* Input */}
+          <div className="p-3 border-t border-slate-600 flex gap-2">
+            <input
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && sendChat()}
+              placeholder="Type a message..."
+              className="flex-1 px-4 py-2 rounded-full bg-slate-800 text-white focus:ring-2 focus:ring-indigo-500"
+            />
+            <button
+              onClick={sendChat}
+              className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-500"
+            >
+              ➤
+            </button>
+          </div>
         </div>
       </div>
     </div>

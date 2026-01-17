@@ -46,9 +46,22 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
                 print(f"⚠️ Unknown action received: {action}")
                 return
 
-            payload = data.get("payload") or {}
+            payload = data.get("payload")
+            # print("----------------------------------------------------------------")
+            # print(payload)
+            # print("----------------------------------------------------------------")
             
-            user = data.get("user", "Anonymous")
+            user = (
+                self.scope["user"].username
+                if self.scope["user"].is_authenticated
+                else "Anonymous"
+            )
+            # print("----------------------------------------------------------------")
+            # print(user)
+            # print("----------------------------------------------------------------")
+            
+            print("AUTH USER:", self.scope["user"], self.scope["user"].is_authenticated)
+
 
             # print(payload.get("id"))
             
@@ -56,7 +69,7 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
                 await self.save_element(payload)
 
             elif action == "chat":
-                await self.save_chat(user, payload)
+                await self.save_chat(payload)
                 
             elif action == "delete_element":
                 await self.delete_element(payload)
@@ -138,11 +151,24 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
         ).delete()
        
     @sync_to_async
-    def save_chat (self, user, payload):
+    def save_chat(self, payload):
+        if not isinstance(payload, dict):
+            return
+
+        text = payload.get("text")
+        if not text:
+            return
+
+        username = (
+            self.scope["user"].username
+            if self.scope["user"].is_authenticated
+            else "Anonymous"
+        )
+
         WhiteBoardChat.objects.create(
             whiteboard=self.board,
-            user=user,
-            message=payload.get("text", "")
+            user=username,
+            message=text
         )
         
     @sync_to_async
