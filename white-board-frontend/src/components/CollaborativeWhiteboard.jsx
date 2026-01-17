@@ -212,213 +212,170 @@ function CollaborativeWhiteboard() {
     return () => socket.close();
   }, [boardId]);
 
-  // 🟢 Rectangle Tool
-  // const addRectangle = () => {
-  //   const newElement = {
-  //     id: Date.now(),
-  //     element_id: crypto.randomUUID(),
-  //     element_type: "rectangle",
-  //     data: {
-  //       x: Math.random() * 400,
-  //       y: Math.random() * 300,
-  //       width: 100,
-  //       height: 100,
-  //       fill: "#4f46e5",
-  //       stroke: "#fff",
-  //       strokeWidth: 2,
-  //     },
-  //   };
-  //   // setRectangles((prev) => [...prev, newElement]);
-  //   // setActions((prev) => [...prev, newAction]);
-
-  //   setActionIndex((prev) => prev + 1);
-
-  //   if (wsRef.current?.readyState === WebSocket.OPEN) {
-  //     wsRef.current.send(
-  //       JSON.stringify({
-  //         action: "add_element",
-  //         payload: newElement,
-  //       })
-  //     );
-  //   }
-  // };
 
   const handleMouseDown = (e) => {
-    if (tool === "pen" || tool === "eraser") {
-      isDrawing.current = true;
-      const pos = e.target.getStage().getPointerPosition();
-      const strokeColor = tool === "eraser" ? "#1e293b" : "#ffffff";
-      const strokeWidth = tool === "eraser" ? 20 : 2;
-      const id = makeId();
+  const button = e.evt.button; // 0 = left, 2 = right
 
-      currentDrawingId.current = id;
-
-      wsRef.current?.send(
-        JSON.stringify({
-          action: "add_element",
-          payload: {
-            element_id: id,
-            type: "line",
-            data: {
-              points: [pos.x, pos.y],
-              color: strokeColor,
-              strokeWidth,
-            },
-          },
-          user,
-        })
-      );
-
-      // setElements((prev) => [
-      //   ...prev,
-      //   {
-      //     id: currentDrawingId.current,
-      //     element_id: id,
-      //     type: "line",
-      //     data: {
-      //       points: [pos.x, pos.y],
-      //       color: strokeColor,
-      //       strokeWidth: strokeWidth,
-      //     },
-      //   },
-      // ]);
-    } else if (tool === "rectangle") {
-      const pos = e.target.getStage().getPointerPosition();
-      startPos.current = pos;
-      setNewRect({
-        x: pos.x,
-        y: pos.y,
-        width: 0,
-        height: 0,
-        stroke: "#00ff88",
-        // fill: "transparent",
-        strokeWidth: 2,
-      });
-      isDrawing.current = true;
-    }
-  };
-
-  const handleMouseMove = (e) => {
-    if (!isDrawing.current) return;
+  // ✏️🧽 PEN / ERASER → RIGHT CLICK ONLY
+  if ((tool === "pen" || tool === "eraser") && button === 2) {
+    isDrawing.current = true;
 
     const pos = e.target.getStage().getPointerPosition();
-    setCursor({ x: pos.x, y: pos.y });
+    const strokeColor = tool === "eraser" ? "#1e293b" : "#ffffff";
+    const strokeWidth = tool === "eraser" ? 20 : 2;
+    const id = makeId();
 
-    if (tool === "pen") {
-      // const stage = e.target.getStage();
-      const point = e.target.getStage().getPointerPosition();
-      // const lastLine = lines[lines.length - 1];
-      // lastLine.points = lastLine.points.concat([point.x, point.y]);
-      // lines.splice(lines.length - 1, 1, lastLine);
-      // setLines(lines.concat());
+    currentDrawingId.current = id;
 
-      // setElements((prev) =>
-      //   prev.map((el) =>
-      //     el.id === currentDrawingId.current
-      //       ? {
-      //           ...el,
-      //           data: {
-      //             ...el.data,
-      //             points: [...el.data.points, point.x, point.y],
-      //           },
-      //         }
-      //       : el
-      //   )
-      // );
-      wsRef.current?.send(
-        JSON.stringify({
-          action: "draw",
-          payload: {
-            element_id: currentDrawingId.current,
-            point: [point.x, point.y],
+    wsRef.current?.send(
+      JSON.stringify({
+        action: "add_element",
+        payload: {
+          element_id: id,
+          type: "line",
+          data: {
+            points: [pos.x, pos.y],
+            color: strokeColor,
+            strokeWidth,
           },
-          user,
-        })
-      );
-    } else if (tool === "eraser") {
-      const pos = e.target.getStage().getPointerPosition();
-      const ERASE_RADIUS = 10;
+        },
+        user,
+      })
+    );
 
-      setElements((prev) => {
-        let deleted = null;
+    return;
+  }
 
-        const remaining = prev.filter((el) => {
-          if (el.type === "rectangle") {
-            const hit =
-              pos.x >= el.data.x &&
-              pos.x <= el.data.x + el.data.width &&
-              pos.y >= el.data.y &&
-              pos.y <= el.data.y + el.data.height;
+  // 🟦 RECTANGLE → LEFT CLICK ONLY
+  if (tool === "rectangle" && button === 0) {
+    const pos = e.target.getStage().getPointerPosition();
+    startPos.current = pos;
 
-            if (hit) {
+    setNewRect({
+      x: pos.x,
+      y: pos.y,
+      width: 0,
+      height: 0,
+      stroke: "#00ff88",
+      strokeWidth: 2,
+    });
+
+    isDrawing.current = true;
+  }
+};
+
+  const handleMouseMove = (e) => {
+  // 🚨 STOP drawing if right button is NOT pressed
+  if (
+    !isDrawing.current ||
+    ((tool === "pen" || tool === "eraser") && e.evt.buttons !== 2)
+  ) {
+    isDrawing.current = false;
+    return;
+  }
+
+  const pos = e.target.getStage().getPointerPosition();
+  setCursor({ x: pos.x, y: pos.y });
+
+  // ✏️ PEN
+  if (tool === "pen") {
+    wsRef.current?.send(
+      JSON.stringify({
+        action: "draw",
+        payload: {
+          element_id: currentDrawingId.current,
+          point: [pos.x, pos.y],
+        },
+        user,
+      })
+    );
+  }
+
+  // 🧽 ERASER
+  else if (tool === "eraser") {
+    const ERASE_RADIUS = 10;
+
+    setElements((prev) => {
+      let deleted = null;
+
+      const remaining = prev.filter((el) => {
+        if (el.type === "rectangle") {
+          const hit =
+            pos.x >= el.data.x &&
+            pos.x <= el.data.x + el.data.width &&
+            pos.y >= el.data.y &&
+            pos.y <= el.data.y + el.data.height;
+
+          if (hit) {
+            deleted = el;
+            return false;
+          }
+        }
+
+        if (el.type === "line") {
+          const pts = el.data.points;
+          for (let i = 0; i < pts.length - 2; i += 2) {
+            const d = distanceToSegment(
+              pos.x,
+              pos.y,
+              pts[i],
+              pts[i + 1],
+              pts[i + 2],
+              pts[i + 3]
+            );
+            if (d < ERASE_RADIUS) {
               deleted = el;
               return false;
             }
           }
-
-          if (el.type === "line") {
-            const pts = el.data.points;
-            for (let i = 0; i < pts.length - 2; i += 2) {
-              const d = distanceToSegment(
-                pos.x,
-                pos.y,
-                pts[i],
-                pts[i + 1],
-                pts[i + 2],
-                pts[i + 3]
-              );
-              if (d < ERASE_RADIUS) {
-                deleted = el;
-                return false;
-              }
-            }
-          }
-
-          return true;
-        });
-
-        // ✅ ADD THIS BLOCK
-        if (deleted) {
-          erasingRef.current = true;
-
-          setActions((prevActions) => [
-            ...prevActions,
-            {
-              type: "delete",
-              element: deleted,
-            },
-          ]);
-
-          setRedoStack([]);
-
-          wsRef.current?.send(
-            JSON.stringify({
-              action: "delete_element",
-              payload: { element_id: deleted.element_id },
-              user: user || "Anonymous",
-            })
-          );
         }
 
-        return remaining;
+        return true;
       });
-    } else if (tool === "rectangle" && newRect) {
-      const pos = e.target.getStage().getPointerPosition();
-      const x = Math.min(pos.x, startPos.current.x);
-      const y = Math.min(pos.y, startPos.current.y);
-      const width = Math.abs(pos.x - startPos.current.x);
-      const height = Math.abs(pos.y - startPos.current.y);
 
-      setNewRect({
-        ...newRect,
-        x,
-        y,
-        width,
-        height,
-      });
-    }
-    // console.log("RECT MOVE", newRect);
-  };
+      // ✅ KEEP redoStack + actions LOGIC UNCHANGED
+      if (deleted) {
+        erasingRef.current = true;
+
+        setActions((prevActions) => [
+          ...prevActions,
+          {
+            type: "delete",
+            element: deleted,
+          },
+        ]);
+
+        setRedoStack([]);
+
+        wsRef.current?.send(
+          JSON.stringify({
+            action: "delete_element",
+            payload: { element_id: deleted.element_id },
+            user: user || "Anonymous",
+          })
+        );
+      }
+
+      return remaining;
+    });
+  }
+
+  // 🟦 RECTANGLE
+  else if (tool === "rectangle" && newRect) {
+    const x = Math.min(pos.x, startPos.current.x);
+    const y = Math.min(pos.y, startPos.current.y);
+    const width = Math.abs(pos.x - startPos.current.x);
+    const height = Math.abs(pos.y - startPos.current.y);
+
+    setNewRect({
+      ...newRect,
+      x,
+      y,
+      width,
+      height,
+    });
+  }
+};
 
   // const newAction = {
   //   id: actionIndex + 1,
@@ -426,69 +383,69 @@ function CollaborativeWhiteboard() {
   //   // data: tool == "rectangle" ? newRect : lines[lines.length - 1],
   // };
   const handleMouseUp = () => {
-    erasingRef.current = false;
-    if (tool === "pen") {
-      const finalLine = elements.find(
-        (e) => e.element_id === currentDrawingId.current
-      );
+  erasingRef.current = false;
+  isDrawing.current = false;
 
-      if (!finalLine) return;
+  if (tool === "pen") {
+    const finalLine = elements.find(
+      (e) => e.element_id === currentDrawingId.current
+    );
 
-      wsRef.current?.send(
-        JSON.stringify({
-          action: "draw_end",
-          payload: {
-            element_id: finalLine.element_id,
-            data: finalLine.data,
-          },
-          user: user || "Anonymous",
-        })
-      );
+    if (!finalLine) return;
 
-      currentDrawingId.current = null;
-
-      setActions((prev) => [
-        ...prev,
-        {
-          type: "add",
-          element: finalLine,
+    wsRef.current?.send(
+      JSON.stringify({
+        action: "draw_end",
+        payload: {
+          element_id: finalLine.element_id,
+          data: finalLine.data,
         },
-      ]);
+        user: user || "Anonymous",
+      })
+    );
 
-      setRedoStack([]);
-      isDrawing.current = false;
-    } else if (tool === "rectangle" && newRect) {
-      const rectElement = {
-        id: makeId(),
-        element_id: makeId(),
-        type: "rectangle",
-        data: newRect,
-      };
+    currentDrawingId.current = null;
 
-      // setElements((prev) => [...prev, rectElement]);
+    setActions((prev) => [
+      ...prev,
+      {
+        type: "add",
+        element: finalLine,
+      },
+    ]);
 
-      wsRef.current?.send(
-        JSON.stringify({
-          action: "add_element",
-          payload: rectElement,
-          user: user || "Anonymous",
-        })
-      );
+    setRedoStack([]);
+  }
 
-      setActions((prev) => [
-        ...prev,
-        {
-          type: "add",
-          element: rectElement,
-        },
-      ]);
+  if (tool === "rectangle" && newRect) {
+    const rectElement = {
+      id: makeId(),
+      element_id: makeId(),
+      type: "rectangle",
+      data: newRect,
+    };
 
-      setRedoStack([]);
+    wsRef.current?.send(
+      JSON.stringify({
+        action: "add_element",
+        payload: rectElement,
+        user: user || "Anonymous",
+      })
+    );
 
-      setNewRect(null);
-      isDrawing.current = false;
-    }
-  };
+    setActions((prev) => [
+      ...prev,
+      {
+        type: "add",
+        element: rectElement,
+      },
+    ]);
+
+    setRedoStack([]);
+
+    setNewRect(null);
+  }
+};
 
   // const undoLast = () => {
   //   if (!actions.length) return;
@@ -657,6 +614,7 @@ function CollaborativeWhiteboard() {
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
+              onContextMenu={(e) => e.evt.preventDefault()}
               style={{ background: "#1e293b" }}
             >
               <Layer>
