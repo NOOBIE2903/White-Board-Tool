@@ -13,13 +13,13 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
         try:
             self.board = await sync_to_async(WhiteBoard.objects.get)(id=self.board_id)
         except WhiteBoard.DoesNotExist:
-            print(f"❌ Invalid board ID: {self.board_id}")
+            # print(f"❌ Invalid board ID: {self.board_id}")
             await self.close()
             return
 
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
-        print(f"✅ Connected to whiteboard: {self.board_id}")
+        # print(f"✅ Connected to whiteboard: {self.board_id}")
 
         chats = await self.get_chat_history() 
         await self.send(json.dumps({
@@ -35,7 +35,7 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
         
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
-        print(f"❌ Disconnected from whiteboard: {self.board_id}")
+        # print(f"❌ Disconnected from whiteboard: {self.board_id}")
 
     async def receive(self, text_data):
         try:
@@ -43,7 +43,7 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
             action = data.get('action')
 
             if action not in ['add_element', 'undo', 'redo', 'draw_end', 'draw', 'chat', 'delete_element']:
-                print(f"⚠️ Unknown action received: {action}")
+                # print(f"⚠️ Unknown action received: {action}")
                 return
 
             payload = data.get("payload")
@@ -60,7 +60,7 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
             # print(user)
             # print("----------------------------------------------------------------")
             
-            print("AUTH USER:", self.scope["user"], self.scope["user"].is_authenticated)
+            # print("AUTH USER:", self.scope["user"], self.scope["user"].is_authenticated)
 
 
             # print(payload.get("id"))
@@ -184,7 +184,7 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
         elements = WhiteBoardElement.objects.filter(
             whiteboard = self.board
         )
-        print(elements)
+        # print(elements)
         return [
             {
                 "element_id": str(el.element_id),

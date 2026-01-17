@@ -65,7 +65,7 @@ export const getWhiteboards = async () => {
 //  * Makes a POST request to the /whiteboards/ endpoint
 export const createWhiteboard = async (name) => {
   try {
-    console.log("Creating whiteboard with name:", name);
+    // console.log("Creating whiteboard with name:", name);
     const response = await apiClient.post("/whiteboards/", { name });
     return response.data;
   } catch (error) {

@@ -27,6 +27,6 @@ class JWTAuthMiddleware:
         else:
             scope["user"] = AnonymousUser()
         
-        print("WS USER:", scope["user"], scope["user"].is_authenticated)
+        # print("WS USER:", scope["user"], scope["user"].is_authenticated)
 
         return await self.inner(scope, receive, send)

@@ -108,13 +108,13 @@ function CollaborativeWhiteboard() {
       `${wsProtocol}://white-board-tool-backend.onrender.com/ws/whiteboard/${boardId}/?token=${token}`
     );
 
-    socket.onopen = () => console.log("✅ Connected to WebSocket");
-    socket.onclose = () => console.log("❌ Disconnected from WebSocket");
-    socket.onerror = (e) => console.error("⚠️ WebSocket error", e);
+    // socket.onopen = () => console.log("✅ Connected to WebSocket");
+    // socket.onclose = () => console.log("❌ Disconnected from WebSocket");
+    // socket.onerror = (e) => console.error("⚠️ WebSocket error", e);
 
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      console.log("📩 Received:", data);
+      // console.log("📩 Received:", data);
 
       switch (data.action) {
         case "add_element":
@@ -525,7 +525,7 @@ function CollaborativeWhiteboard() {
   // 🟢 Chat Sending
   const sendChat = () => {
     if (message.trim() && wsRef.current?.readyState === WebSocket.OPEN) {
-      console.log("----------------INSIDE------------------");
+      // console.log("----------------INSIDE------------------");
       wsRef.current.send(
         JSON.stringify({
           action: "chat",
