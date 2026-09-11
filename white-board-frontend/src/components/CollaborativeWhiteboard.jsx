@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Stage, Layer, Rect, Line, Circle } from "react-konva";
 import { useParams, Link } from "react-router-dom";
 import { getWhiteboardDetails } from "../api/apiService";
+import { getWsUrl } from "../config/api";
 import toast from "react-hot-toast";
 import WireframeCodeModal from "./WireframeCodeModal";
 
@@ -13,14 +14,17 @@ function CollaborativeWhiteboard() {
   const [tool, setTool] = useState("rectangle"); // "rectangle", "pen", "eraser"
   const [selectedColor, setSelectedColor] = useState("#FF6B00");
   const [selectedStrokeWidth, setSelectedStrokeWidth] = useState(3);
+  const [wsStatus, setWsStatus] = useState("connecting"); // "connected" | "connecting" | "disconnected"
   
   const wsRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
+  const reconnectAttempts = useRef(0);
   const isDrawing = useRef(false);
   const startPos = useRef({ x: 0, y: 0 });
   const [newRect, setNewRect] = useState(null);
   const [cursor, setCursor] = useState({ x: 0, y: 0 });
   const [, setActions] = useState([]);
-  const currentDrawingId = useRef();
+  const currentDrawingId = useRef(null);
   const [, setRedoStack] = useState([]);
   const [copy, setCopy] = useState(false);
   const [elements, setElements] = useState([]);
@@ -30,6 +34,20 @@ function CollaborativeWhiteboard() {
   const stageRef = useRef(null);
   const [isCodeGenOpen, setIsCodeGenOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(true);
+  const [canvasWidth, setCanvasWidth] = useState(
+    typeof window !== "undefined" ? Math.max(300, window.innerWidth - 380) : 800
+  );
+
+  // Keep canvas width responsive
+  useEffect(() => {
+    const handleResize = () => {
+      const offset = isChatOpen ? 380 : 80;
+      setCanvasWidth(Math.max(300, window.innerWidth - offset));
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [isChatOpen]);
 
   useEffect(() => {
     const storedUsername = localStorage.getItem("username");
@@ -81,10 +99,19 @@ function CollaborativeWhiteboard() {
     return Math.sqrt(dx * dx + dy * dy);
   };
 
-  const makeId = () =>
-    typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  // RFC4122 Compliant UUID generator ensuring valid UUIDs for Django UUIDField
+  const makeId = () => {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      try {
+        return crypto.randomUUID();
+      } catch (_) {}
+    }
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0;
+      const v = c === "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  };
 
   // 🟢 Load whiteboard details on mount
   useEffect(() => {
@@ -106,141 +133,267 @@ function CollaborativeWhiteboard() {
     fetchWhiteboard();
   }, [boardId]);
 
-  // 🟢 Initialize WebSocket
-  useEffect(() => {
-    const token = localStorage.getItem("accessToken") || "";
-    const envWs = import.meta.env.VITE_WS_BASE_URL;
-    const envBackend = import.meta.env.VITE_BACKEND_URL || "https://white-board-tool-backend.onrender.com";
+  // 🟢 Initialize WebSocket with auto-reconnect and real-time state tracking
+  const connectWebSocket = useCallback(() => {
+    if (!boardId) return;
 
-    let wsUrl = "";
-    if (envWs) {
-      wsUrl = `${envWs}/ws/whiteboard/${boardId}/?token=${token}`;
-    } else {
-      const wsProtocol = envBackend.startsWith("https") ? "wss" : "ws";
-      const wsHost = envBackend.replace(/^https?:\/\//, "").replace(/\/$/, "");
-      wsUrl = `${wsProtocol}://${wsHost}/ws/whiteboard/${boardId}/?token=${token}`;
-    }
-
-    const socket = new WebSocket(wsUrl);
-
-    socket.onopen = () => console.log("✅ Connected to WebSocket");
-    socket.onclose = () => console.log("❌ Disconnected from WebSocket");
-    socket.onerror = (e) => console.error("⚠️ WebSocket error", e);
-
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      switch (data.action) {
-        case "add_element":
-          setElements((prev) => {
-            const exists = prev.some(
-              (el) => el.element_id === data.payload.element_id
-            );
-            return exists ? prev : [...prev, data.payload];
-          });
-          break;
-        case "draw":
-          setElements((prev) =>
-            prev.map((el) =>
-              el.element_id === data.payload.element_id
-                ? {
-                    ...el,
-                    data: {
-                      ...el.data,
-                      points: [...el.data.points, ...data.payload.point],
-                    },
-                  }
-                : el
-            )
-          );
-          break;
-        case "chat":
-          setChatMessages((prev) => [
-            ...prev,
-            { user: data.user, text: data.payload.text },
-          ]);
-          break;
-        case "chat_history":
-          setChatMessages(data.payload);
-          break;
-        case "delete_element":
-          setElements((prev) =>
-            prev.filter((el) => el.element_id !== data.payload.element_id)
-          );
-          break;
-        case "elements_history":
-          setElements(
-            data.payload.map((el) => ({
-              ...el,
-              id: el.element_id,
-            }))
-          );
-          break;
-        case "undo":
-          if (data.payload.type === "delete") {
-            setElements((prev) =>
-              prev.filter((el) => el.element_id !== data.payload.element_id)
-            );
-          }
-          if (data.payload.type === "add") {
-            setElements((prev) => [...prev, data.payload.element]);
-          }
-          break;
-        case "redo":
-          if (data.payload.type === "add") {
-            setElements((prev) => [...prev, data.payload.element]);
-          }
-          if (data.payload.type === "delete") {
-            setElements((prev) =>
-              prev.filter((el) => el.element_id !== data.payload.element_id)
-            );
-          }
-          break;
-        default:
-          break;
-      }
-    };
-
-    wsRef.current = socket;
-    return () => socket.close();
-  }, [boardId]);
-
-  const handleMouseDown = (e) => {
-    const button = e.evt.button; // 0 = left click
-
-    // ✏️🧽 PEN / ERASER
-    if (tool === "pen" || tool === "eraser") {
-      isDrawing.current = true;
-      const pos = e.target.getStage().getPointerPosition();
-      const strokeColor = tool === "eraser" ? "#FAFAFA" : selectedColor;
-      const strokeWidth = tool === "eraser" ? 24 : selectedStrokeWidth;
-      const id = makeId();
-
-      currentDrawingId.current = id;
-
-      wsRef.current?.send(
-        JSON.stringify({
-          action: "add_element",
-          payload: {
-            element_id: id,
-            type: "line",
-            data: {
-              points: [pos.x, pos.y],
-              color: strokeColor,
-              strokeWidth,
-            },
-          },
-          user,
-        })
-      );
+    if (
+      wsRef.current &&
+      (wsRef.current.readyState === WebSocket.OPEN ||
+        wsRef.current.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
-    // 🟦 RECTANGLE
-    if (tool === "rectangle" && button === 0) {
-      const pos = e.target.getStage().getPointerPosition();
-      startPos.current = pos;
+    setWsStatus("connecting");
+    const token = localStorage.getItem("accessToken") || "";
+    const wsUrl = getWsUrl(boardId, token);
 
+    try {
+      const socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        console.log("✅ Connected to WebSocket:", wsUrl);
+        setWsStatus("connected");
+        reconnectAttempts.current = 0;
+      };
+
+      socket.onclose = (e) => {
+        console.log("❌ Disconnected from WebSocket, code:", e.code);
+        setWsStatus("disconnected");
+        // Reconnect with exponential backoff (max 10s)
+        const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts.current), 10000);
+        reconnectAttempts.current += 1;
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connectWebSocket();
+        }, delay);
+      };
+
+      socket.onerror = (e) => {
+        console.error("⚠️ WebSocket error", e);
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          switch (data.action) {
+            case "add_element":
+              setElements((prev) => {
+                const exists = prev.some(
+                  (el) => el.element_id === data.payload.element_id
+                );
+                return exists ? prev : [...prev, data.payload];
+              });
+              break;
+            case "draw":
+              // Only apply remote points if this line isn't the one currently being drawn by local user
+              if (currentDrawingId.current !== data.payload.element_id) {
+                setElements((prev) =>
+                  prev.map((el) =>
+                    el.element_id === data.payload.element_id
+                      ? {
+                          ...el,
+                          data: {
+                            ...el.data,
+                            points: [
+                              ...(el.data?.points || []),
+                              ...(data.payload.point || []),
+                            ],
+                          },
+                        }
+                      : el
+                  )
+                );
+              }
+              break;
+            case "chat":
+              setChatMessages((prev) => [
+                ...prev,
+                { user: data.user, text: data.payload.text },
+              ]);
+              break;
+            case "chat_history":
+              setChatMessages(data.payload || []);
+              break;
+            case "delete_element":
+              setElements((prev) =>
+                prev.filter((el) => el.element_id !== data.payload.element_id)
+              );
+              break;
+            case "elements_history":
+              setElements(
+                (data.payload || []).map((el) => ({
+                  ...el,
+                  id: el.element_id,
+                }))
+              );
+              break;
+            case "undo":
+              if (data.payload.type === "delete") {
+                setElements((prev) =>
+                  prev.filter((el) => el.element_id !== data.payload.element_id)
+                );
+              }
+              if (data.payload.type === "add") {
+                setElements((prev) => [...prev, data.payload.element]);
+              }
+              break;
+            case "redo":
+              if (data.payload.type === "add") {
+                setElements((prev) => [...prev, data.payload.element]);
+              }
+              if (data.payload.type === "delete") {
+                setElements((prev) =>
+                  prev.filter((el) => el.element_id !== data.payload.element_id)
+                );
+              }
+              break;
+            default:
+              break;
+          }
+        } catch (err) {
+          console.error("Error parsing WebSocket message:", err);
+        }
+      };
+
+      wsRef.current = socket;
+    } catch (err) {
+      console.error("WebSocket creation error:", err);
+      setWsStatus("disconnected");
+    }
+  }, [boardId]);
+
+  useEffect(() => {
+    connectWebSocket();
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+      }
+    };
+  }, [connectWebSocket]);
+
+  // Clean eraser helper that only deletes intersected elements without creating phantom lines
+  const eraseAtPosition = (pos) => {
+    const ERASE_RADIUS = 15;
+
+    setElements((prev) => {
+      let deleted = null;
+
+      const remaining = prev.filter((el) => {
+        if (el.type === "rectangle" && el.data) {
+          const hit =
+            pos.x >= el.data.x &&
+            pos.x <= el.data.x + el.data.width &&
+            pos.y >= el.data.y &&
+            pos.y <= el.data.y + el.data.height;
+
+          if (hit) {
+            deleted = el;
+            return false;
+          }
+        }
+
+        if (el.type === "line") {
+          const pts = el.data?.points || [];
+          for (let i = 0; i < pts.length - 2; i += 2) {
+            const d = distanceToSegment(
+              pos.x,
+              pos.y,
+              pts[i],
+              pts[i + 1],
+              pts[i + 2],
+              pts[i + 3]
+            );
+            if (d < ERASE_RADIUS) {
+              deleted = el;
+              return false;
+            }
+          }
+        }
+
+        return true;
+      });
+
+      if (deleted) {
+        setActions((prevActions) => [
+          ...prevActions,
+          { type: "delete", element: deleted },
+        ]);
+        setRedoStack([]);
+
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(
+            JSON.stringify({
+              action: "delete_element",
+              payload: { element_id: deleted.element_id },
+              user: user || "Anonymous",
+            })
+          );
+        }
+      }
+
+      return remaining;
+    });
+  };
+
+  const handleMouseDown = (e) => {
+    const button = e.evt.button;
+    if (button !== 0) return; // Left click only for all drawing tools
+
+    const stage = e.target.getStage();
+    const pos = stage.getPointerPosition();
+    if (!pos) return;
+
+    // ✏️ PEN - Optimistic local rendering + WebSocket broadcast
+    if (tool === "pen") {
+      isDrawing.current = true;
+      const id = makeId();
+      currentDrawingId.current = id;
+
+      const newLine = {
+        id: id,
+        element_id: id,
+        type: "line",
+        data: {
+          points: [pos.x, pos.y],
+          color: selectedColor,
+          strokeWidth: selectedStrokeWidth,
+        },
+      };
+
+      // 1. Render immediately on local canvas
+      setElements((prev) => [...prev, newLine]);
+
+      // 2. Dispatch to peers via WebSocket
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            action: "add_element",
+            payload: newLine,
+            user: user || "Anonymous",
+          })
+        );
+      }
+      return;
+    }
+
+    // 🧽 ERASER - Delete intersected objects directly
+    if (tool === "eraser") {
+      isDrawing.current = true;
+      erasingRef.current = true;
+      setCursor({ x: pos.x, y: pos.y });
+      eraseAtPosition(pos);
+      return;
+    }
+
+    // 🟦 RECTANGLE - Initialize preview
+    if (tool === "rectangle") {
+      startPos.current = pos;
       setNewRect({
         x: pos.x,
         y: pos.y,
@@ -251,96 +404,58 @@ function CollaborativeWhiteboard() {
         fill: "transparent",
         cornerRadius: 6,
       });
-
       isDrawing.current = true;
     }
   };
 
   const handleMouseMove = (e) => {
-    if (!isDrawing.current) return;
+    const stage = e.target.getStage();
+    const pos = stage.getPointerPosition();
+    if (!pos) return;
 
-    const pos = e.target.getStage().getPointerPosition();
     setCursor({ x: pos.x, y: pos.y });
 
-    // ✏️ PEN
-    if (tool === "pen") {
-      wsRef.current?.send(
-        JSON.stringify({
-          action: "draw",
-          payload: {
-            element_id: currentDrawingId.current,
-            point: [pos.x, pos.y],
-          },
-          user,
-        })
+    if (!isDrawing.current) return;
+
+    // ✏️ PEN - Append points locally and broadcast
+    if (tool === "pen" && currentDrawingId.current) {
+      setElements((prev) =>
+        prev.map((el) =>
+          el.element_id === currentDrawingId.current
+            ? {
+                ...el,
+                data: {
+                  ...el.data,
+                  points: [...(el.data?.points || []), pos.x, pos.y],
+                },
+              }
+            : el
+        )
       );
+
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            action: "draw",
+            payload: {
+              element_id: currentDrawingId.current,
+              point: [pos.x, pos.y],
+            },
+            user: user || "Anonymous",
+          })
+        );
+      }
+      return;
     }
 
     // 🧽 ERASER
-    else if (tool === "eraser") {
-      const ERASE_RADIUS = 15;
-
-      setElements((prev) => {
-        let deleted = null;
-
-        const remaining = prev.filter((el) => {
-          if (el.type === "rectangle") {
-            const hit =
-              pos.x >= el.data.x &&
-              pos.x <= el.data.x + el.data.width &&
-              pos.y >= el.data.y &&
-              pos.y <= el.data.y + el.data.height;
-
-            if (hit) {
-              deleted = el;
-              return false;
-            }
-          }
-
-          if (el.type === "line") {
-            const pts = el.data.points;
-            for (let i = 0; i < pts.length - 2; i += 2) {
-              const d = distanceToSegment(
-                pos.x,
-                pos.y,
-                pts[i],
-                pts[i + 1],
-                pts[i + 2],
-                pts[i + 3]
-              );
-              if (d < ERASE_RADIUS) {
-                deleted = el;
-                return false;
-              }
-            }
-          }
-
-          return true;
-        });
-
-        if (deleted) {
-          erasingRef.current = true;
-          setActions((prevActions) => [
-            ...prevActions,
-            { type: "delete", element: deleted },
-          ]);
-          setRedoStack([]);
-
-          wsRef.current?.send(
-            JSON.stringify({
-              action: "delete_element",
-              payload: { element_id: deleted.element_id },
-              user: user || "Anonymous",
-            })
-          );
-        }
-
-        return remaining;
-      });
+    if (tool === "eraser") {
+      eraseAtPosition(pos);
+      return;
     }
 
-    // 🟦 RECTANGLE
-    else if (tool === "rectangle" && newRect) {
+    // 🟦 RECTANGLE preview update
+    if (tool === "rectangle" && newRect) {
       const x = Math.min(pos.x, startPos.current.x);
       const y = Math.min(pos.y, startPos.current.y);
       const width = Math.abs(pos.x - startPos.current.x);
@@ -360,67 +475,89 @@ function CollaborativeWhiteboard() {
     erasingRef.current = false;
     isDrawing.current = false;
 
-    if (tool === "pen") {
-      const finalLine = elements.find(
-        (e) => e.element_id === currentDrawingId.current
-      );
-
-      if (!finalLine) return;
-
-      wsRef.current?.send(
-        JSON.stringify({
-          action: "draw_end",
-          payload: {
-            element_id: finalLine.element_id,
-            data: finalLine.data,
-          },
-          user: user || "Anonymous",
-        })
-      );
-
+    // ✏️ PEN finalize
+    if (tool === "pen" && currentDrawingId.current) {
+      const drawingId = currentDrawingId.current;
       currentDrawingId.current = null;
-      setActions((prev) => [...prev, { type: "add", element: finalLine }]);
-      setRedoStack([]);
+
+      setElements((prev) => {
+        const finalLine = prev.find((e) => e.element_id === drawingId);
+        if (finalLine) {
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(
+              JSON.stringify({
+                action: "draw_end",
+                payload: {
+                  element_id: finalLine.element_id,
+                  data: finalLine.data,
+                },
+                user: user || "Anonymous",
+              })
+            );
+          }
+          setActions((prevActions) => [...prevActions, { type: "add", element: finalLine }]);
+          setRedoStack([]);
+        }
+        return prev;
+      });
+      return;
     }
 
+    // 🟦 RECTANGLE finalize
     if (tool === "rectangle" && newRect) {
-      const rectElement = {
-        id: makeId(),
-        element_id: makeId(),
-        type: "rectangle",
-        data: newRect,
-      };
+      if (newRect.width > 2 || newRect.height > 2) {
+        const rectId = makeId();
+        const rectElement = {
+          id: rectId,
+          element_id: rectId,
+          type: "rectangle",
+          data: { ...newRect },
+        };
 
-      wsRef.current?.send(
-        JSON.stringify({
-          action: "add_element",
-          payload: rectElement,
-          user: user || "Anonymous",
-        })
-      );
+        // Render immediately in local state
+        setElements((prev) => [...prev, rectElement]);
 
-      setActions((prev) => [...prev, { type: "add", element: rectElement }]);
-      setRedoStack([]);
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(
+            JSON.stringify({
+              action: "add_element",
+              payload: rectElement,
+              user: user || "Anonymous",
+            })
+          );
+        }
+
+        setActions((prev) => [...prev, { type: "add", element: rectElement }]);
+        setRedoStack([]);
+      }
       setNewRect(null);
     }
   };
 
   const undoLast = () => {
-    wsRef.current?.send(
-      JSON.stringify({
-        action: "undo",
-        user: user || "Anonymous",
-      })
-    );
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          action: "undo",
+          user: user || "Anonymous",
+        })
+      );
+    } else {
+      toast.error("Offline: cannot sync undo action", { id: "offline-undo" });
+    }
   };
 
   const redoLast = () => {
-    wsRef.current?.send(
-      JSON.stringify({
-        action: "redo",
-        user: user || "Anonymous",
-      })
-    );
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          action: "redo",
+          user: user || "Anonymous",
+        })
+      );
+    } else {
+      toast.error("Offline: cannot sync redo action", { id: "offline-redo" });
+    }
   };
 
   const textToCopy = `${window.location.origin}/collab/${boardId}`;
@@ -436,15 +573,24 @@ function CollaborativeWhiteboard() {
   };
 
   const sendChat = () => {
-    if (message.trim() && wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          action: "chat",
-          payload: { text: message },
-        })
-      );
-      setMessage("");
+    const trimmed = message.trim();
+    if (!trimmed) return;
+
+    if (wsRef.current?.readyState !== WebSocket.OPEN) {
+      toast.error("Connecting to server. Please try again in a moment.", {
+        id: "ws-chat-not-connected",
+      });
+      return;
     }
+
+    wsRef.current.send(
+      JSON.stringify({
+        action: "chat",
+        payload: { text: trimmed },
+        user: user || "Anonymous",
+      })
+    );
+    setMessage("");
   };
 
   useEffect(() => {
@@ -468,10 +614,28 @@ function CollaborativeWhiteboard() {
               <h2 className="text-xl font-extrabold text-[#1E2022]">
                 {board?.name || "Collaborative Canvas"}
               </h2>
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live Syncing
-              </span>
+              {wsStatus === "connected" && (
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Syncing
+                </span>
+              )}
+              {wsStatus === "connecting" && (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Connecting...
+                </span>
+              )}
+              {wsStatus === "disconnected" && (
+                <button
+                  onClick={connectWebSocket}
+                  className="px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 hover:bg-rose-100 transition-colors cursor-pointer"
+                  title="Click to reconnect"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                  Offline • Retry
+                </button>
+              )}
             </div>
             <p className="text-xs text-[#6C757D]">
               Board ID: <span className="font-mono text-[#1E2022]">{boardId}</span>
@@ -611,7 +775,7 @@ function CollaborativeWhiteboard() {
           <div className="w-full h-[620px] rounded-3xl border border-[#FFE2D1] bg-dot-pattern shadow-sm overflow-hidden relative">
             <Stage
               ref={stageRef}
-              width={window.innerWidth - (isChatOpen ? 380 : 80)}
+              width={canvasWidth}
               height={620}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}

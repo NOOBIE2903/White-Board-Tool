@@ -53,23 +53,17 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
             
             user = (
                 self.scope["user"].username
-                if self.scope["user"].is_authenticated
-                else "Anonymous"
+                if self.scope.get("user") and self.scope["user"].is_authenticated
+                else data.get("user") or "Anonymous"
             )
-            # print("----------------------------------------------------------------")
-            # print(user)
-            # print("----------------------------------------------------------------")
             
-            print("AUTH USER:", self.scope["user"], self.scope["user"].is_authenticated)
+            print("AUTH USER:", user, self.scope.get("user", {}).is_authenticated if self.scope.get("user") else False)
 
-
-            # print(payload.get("id"))
-            
             if action == "add_element":
                 await self.save_element(payload)
 
             elif action == "chat":
-                await self.save_chat(payload)
+                await self.save_chat(payload, username=user)
                 
             elif action == "delete_element":
                 await self.delete_element(payload)
@@ -105,7 +99,8 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
                 return
             
             elif action == "draw":
-                await self.update_element(payload)
+                # Intermediate stroke point: broadcast in real-time without blocking DB write
+                pass
             
             elif action == "draw_end":
                 await self.save_draw_action(payload)
@@ -127,19 +122,22 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
             print("❌ Error in receive:", e)
             
     @sync_to_async
-    def save_element (self, payload):
-        # print(payload)
-        element = WhiteBoardElement.objects.create(
-            whiteboard=self.board,
-            element_id = payload.get("element_id"),
-            element_type=payload.get("type"),
-            data=payload.get("data", {})
+    def save_element(self, payload):
+        if not payload or not payload.get("element_id"):
+            return
+        element, _ = WhiteBoardElement.objects.update_or_create(
+            element_id=payload.get("element_id"),
+            defaults={
+                "whiteboard": self.board,
+                "element_type": payload.get("type"),
+                "data": payload.get("data", {})
+            }
         )
         
         WhiteBoardAction.objects.create(
-            whiteboard = self.board,
-            action_type = "add",
-            element_snapshot = {
+            whiteboard=self.board,
+            action_type="add",
+            element_snapshot={
                 "element_id": str(element.element_id),
                 "type": element.element_type,
                 "data": element.data,
@@ -151,19 +149,13 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
         ).delete()
        
     @sync_to_async
-    def save_chat(self, payload):
+    def save_chat(self, payload, username="Anonymous"):
         if not isinstance(payload, dict):
             return
 
         text = payload.get("text")
         if not text:
             return
-
-        username = (
-            self.scope["user"].username
-            if self.scope["user"].is_authenticated
-            else "Anonymous"
-        )
 
         WhiteBoardChat.objects.create(
             whiteboard=self.board,
@@ -351,12 +343,23 @@ class WhiteboardConsumer(AsyncWebsocketConsumer):
         
     @sync_to_async
     def save_draw_action(self, payload):
+        if not payload or not payload.get("element_id"):
+            return
+
         element = WhiteBoardElement.objects.filter(
             element_id=payload.get("element_id")
         ).first()
 
         if not element:
-            return
+            element = WhiteBoardElement.objects.create(
+                whiteboard=self.board,
+                element_id=payload.get("element_id"),
+                element_type="line",
+                data=payload.get("data", {})
+            )
+        elif payload.get("data"):
+            element.data = payload.get("data")
+            element.save(update_fields=["data"])
 
         WhiteBoardAction.objects.create(
             whiteboard=self.board,
