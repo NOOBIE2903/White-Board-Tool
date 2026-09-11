@@ -2,16 +2,15 @@
   "version": 2,
   "builds": [
     {
-      "src": "white_board_tool/wsgi.py",
+      "src": "white_board_backend/wsgi.py",
       "use": "@vercel/python",
       "config": {
-        "runtime": "python3.9",
         "maxLambdaSize": "15mb"
       }
     }
   ],
   "routes": [
     { "src": "/static/(.*)", "dest": "/static/$1" },
-    { "src": "/(.*)", "dest": "white_board_tool/wsgi.py" }
+    { "src": "/(.*)", "dest": "white_board_backend/wsgi.py" }
   ]
 }

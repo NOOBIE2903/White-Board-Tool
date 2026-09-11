@@ -65,7 +65,7 @@ export const getWhiteboards = async () => {
 //  * Makes a POST request to the /whiteboards/ endpoint
 export const createWhiteboard = async (name) => {
   try {
-    // console.log("Creating whiteboard with name:", name);
+    console.log("Creating whiteboard with name:", name);
     const response = await apiClient.post("/whiteboards/", { name });
     return response.data;
   } catch (error) {
@@ -83,4 +83,14 @@ export const getWhiteboardDetails = async (id) => {
     console.error(`Error fetching whiteboard details:${id}`, error);
     throw error;
   } 
-}
+};
+
+export const generateCodeFromWireframe = async (boardId, payload) => {
+  try {
+    const response = await apiClient.post(`/whiteboards/${boardId}/generate-code/`, payload);
+    return response.data;
+  } catch (error) {
+    console.error("Error generating code from wireframe:", error);
+    throw error;
+  }
+};

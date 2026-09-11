@@ -5,6 +5,9 @@ from django.core.management import execute_from_command_line
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "white_board_backend.settings")
 
 def run():
+    print("Collecting static files...")
+    execute_from_command_line(["manage.py", "collectstatic", "--noinput"])
+    print("Applying database migrations...")
     execute_from_command_line(["manage.py", "migrate", "--noinput"])
 
 if __name__ == "__main__":
