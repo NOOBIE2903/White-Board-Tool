@@ -47,9 +47,9 @@ export default function WireframeCodeModal({
   }, [loading]);
 
   const loadingMessages = [
-    "🔍 Scanning wireframe geometry and canvas snapshot...",
-    "📐 Analyzing spatial hierarchy, headers, and UI elements...",
-    "✨ Generating clean, responsive Tailwind CSS code...",
+    "🔍 Scanning whiteboard drawing and canvas snapshot...",
+    "📐 Rendering clean board canvas and vector design...",
+    "✨ Compiling responsive code and live preview...",
   ];
 
   const handleGenerate = async () => {
@@ -424,7 +424,7 @@ export default function WireframeCodeModal({
                 </span>
               </h2>
               <p className="text-xs text-[#6C757D] font-medium">
-                Turn your whiteboard sketch into responsive Tailwind components with live preview
+                Turn your whiteboard drawing and design into clean code with live preview
               </p>
             </div>
           </div>
@@ -470,7 +470,7 @@ export default function WireframeCodeModal({
               type="text"
               value={customPrompt}
               onChange={(e) => setCustomPrompt(e.target.value)}
-              placeholder="Design tweaks (e.g. warm orange cards, e-commerce layout)..."
+              placeholder="Design tweaks (e.g. dark board canvas, minimalist toolbar)..."
               className="w-72 sm:w-96 px-4 py-2 text-xs rounded-2xl bg-white border border-[#FFE2D1] text-[#1E2022] placeholder-[#A0AAB0] font-medium focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/30 focus:border-[#FF6B00]"
             />
           </div>
