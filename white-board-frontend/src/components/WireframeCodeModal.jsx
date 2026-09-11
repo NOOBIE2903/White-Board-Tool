@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 import { generateCodeFromWireframe } from "../api/apiService";
 import { exportElementsToSVG, downloadSVGFile } from "../utils/svgExport";
@@ -45,8 +45,6 @@ export default function WireframeCodeModal({
     }
     return () => clearInterval(timer);
   }, [loading]);
-
-  if (!isOpen) return null;
 
   const loadingMessages = [
     "🔍 Scanning wireframe geometry and canvas snapshot...",
@@ -114,7 +112,7 @@ export default function WireframeCodeModal({
   };
 
   // Export SVG from generated code/HTML or whiteboard elements
-  const handleExportSVG = () => {
+  const handleExportSVG = useCallback(() => {
     try {
       // 1. Check if generated preview or code contains SVG markup
       const svgMatch =
@@ -139,10 +137,11 @@ export default function WireframeCodeModal({
       console.error("Export SVG error:", err);
       toast.error("Failed to export SVG.");
     }
-  };
+  }, [result, elements, boardId]);
 
   // Listen for SVG export requests forwarded from inside the preview iframe
   useEffect(() => {
+    if (!isOpen) return;
     const handleWindowMessage = (event) => {
       if (event.data?.type === "EXPORT_SVG_REQUEST") {
         handleExportSVG();
@@ -150,7 +149,7 @@ export default function WireframeCodeModal({
     };
     window.addEventListener("message", handleWindowMessage);
     return () => window.removeEventListener("message", handleWindowMessage);
-  }, [result, elements, boardId]);
+  }, [isOpen, handleExportSVG]);
 
   // Enhances preview HTML with SVG download handling and prevents sandbox alert exceptions
   const preparePreviewHtml = (rawHtml) => {
@@ -230,6 +229,8 @@ export default function WireframeCodeModal({
     }
     return rawHtml + interceptorScript;
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in font-sans">

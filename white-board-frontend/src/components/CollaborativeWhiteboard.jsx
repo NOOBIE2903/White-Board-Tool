@@ -69,12 +69,16 @@ function CollaborativeWhiteboard() {
       let guestName = null;
       try {
         guestName = sessionStorage.getItem("guest_user_name");
-      } catch (_) {}
+      } catch {
+        guestName = null;
+      }
       if (!guestName) {
         guestName = `Guest-${Math.floor(1000 + Math.random() * 9000)}`;
         try {
           sessionStorage.setItem("guest_user_name", guestName);
-        } catch (_) {}
+        } catch {
+          // ignore sessionStorage write errors
+        }
       }
       setUser(guestName);
     }
@@ -115,7 +119,9 @@ function CollaborativeWhiteboard() {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
       try {
         return crypto.randomUUID();
-      } catch (_) {}
+      } catch {
+        // fallback to Math.random generator
+      }
     }
     return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
       const r = (Math.random() * 16) | 0;
