@@ -67,9 +67,16 @@ function DashboardPage() {
     }
   };
 
+  const storedUsername = localStorage.getItem("username");
+  const rawUsername = storedUsername || user?.username || user?.user_id || "Creator";
+  const displayUsername = String(rawUsername);
+  const avatarLetter = (displayUsername.charAt(0) || "C").toUpperCase();
+
   const handleLogout = () => {
     localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
     localStorage.removeItem("user");
+    localStorage.removeItem("username");
     setUser(null);
     toast.success("Logged out successfully");
     navigate("/login");
@@ -83,8 +90,6 @@ function DashboardPage() {
     navigate("/signup");
   };
 
-  const username = user?.username || user?.user_id || "Creator";
-
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
       {/* Top Banner Header */}
@@ -94,7 +99,7 @@ function DashboardPage() {
             <span>🎨</span> Personal Workspace
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-[#1E2022] tracking-tight">
-            {user ? `Welcome back, ${username}! 👋` : "Collaborative Whiteboards"}
+            {user ? `Welcome back, ${displayUsername}! 👋` : "Collaborative Whiteboards"}
           </h1>
           <p className="text-sm text-[#6C757D] font-medium mt-1">
             Design wireframes, draw concepts, and generate live code in real-time.
@@ -107,10 +112,10 @@ function DashboardPage() {
             <div className="flex items-center gap-3 bg-white p-2 pl-4 rounded-2xl shadow-sm border border-[#FFE2D1]">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-full bg-[#FFF0E6] text-[#FF6B00] font-bold text-sm flex items-center justify-center border border-[#FFE2D1]">
-                  {username.charAt(0).toUpperCase()}
+                  {avatarLetter}
                 </div>
                 <span className="text-sm font-bold text-[#1E2022] hidden sm:inline">
-                  {username}
+                  {displayUsername}
                 </span>
               </div>
               <button

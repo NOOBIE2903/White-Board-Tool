@@ -32,11 +32,17 @@ function CollaborativeWhiteboard() {
   const [isChatOpen, setIsChatOpen] = useState(true);
 
   useEffect(() => {
+    const storedUsername = localStorage.getItem("username");
+    if (storedUsername) {
+      setUser(String(storedUsername));
+      return;
+    }
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
-        setUser(parsed.username || parsed.user_id || "Anonymous");
+        const rawName = parsed.username || parsed.user_id || "Anonymous";
+        setUser(String(rawName));
       } catch {
         setUser("Creator");
       }

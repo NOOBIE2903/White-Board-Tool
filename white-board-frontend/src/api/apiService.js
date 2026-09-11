@@ -15,6 +15,7 @@ export const login = async (username, password) => {
     if (response.data.access) {
       const decoded = jwtDecode(response.data.access);
       localStorage.setItem("user", JSON.stringify(decoded));
+      localStorage.setItem("username", username);
       localStorage.setItem("accessToken", response.data.access);
       localStorage.setItem("refreshToken", response.data.refresh);
       // console.log(response)
