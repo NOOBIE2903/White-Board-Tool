@@ -134,8 +134,8 @@ Required JSON Structure:
         }
     }
 
-    # Try gemini-2.5-flash first, fallback to gemini-1.5-flash
-    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash"]
+    configured_model = os.getenv("GEMINI_MODEL")
+    models_to_try = [configured_model] if configured_model else ["gemini-3.6-flash", "gemini-3.7-flash"]
     last_error = None
 
     for model in models_to_try:
