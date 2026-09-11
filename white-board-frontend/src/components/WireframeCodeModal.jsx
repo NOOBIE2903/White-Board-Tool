@@ -151,18 +151,158 @@ export default function WireframeCodeModal({
     return () => window.removeEventListener("message", handleWindowMessage);
   }, [isOpen, handleExportSVG]);
 
-  // Enhances preview HTML with SVG download handling and prevents sandbox alert exceptions
+  // Enhances preview HTML with Lucide icons, CDN dependencies, and SVG download handling
   const preparePreviewHtml = (rawHtml) => {
     if (!rawHtml) return "<html><body>No preview available</body></html>";
 
-    const interceptorScript = `
+    let html = rawHtml;
+
+    // Transform any ES module imports in preview HTML to global destructuring
+    html = html
+      .replace(/import\s+\{([^}]+)\}\s+from\s+['"]lucide-react['"];?/g, "const { $1 } = window.lucide || {};")
+      .replace(/import\s+\*\s+as\s+lucide\s+from\s+['"]lucide-react['"];?/g, "const lucide = window.lucide;")
+      .replace(/import\s+React,?\s*\{?([^}]*)\}?\s+from\s+['"]react['"];?/g, (match, p1) => (p1.trim() ? `const { ${p1} } = React;` : "// React imported"))
+      .replace(/import\s+ReactDOM\s+from\s+['"]react-dom['"];?/g, "// ReactDOM imported");
+
+    const headPolyfills = `
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script>
 (function() {
-  // Prevent alert() from crashing in sandbox and provide friendly log
   window.alert = function(msg) {
     console.log("[Preview Notification]:", msg);
   };
 
+  // Preview error boundary
+  window.addEventListener("error", function(e) {
+    console.warn("[Preview Runtime Warning]:", e.message);
+    var root = document.getElementById("root");
+    if (root && root.children.length === 0) {
+      root.innerHTML = '<div style="padding:24px;margin:24px;border-radius:16px;background:#FFF0E6;border:1px solid #FFE2D1;color:#C85000;font-family:sans-serif;">' +
+        '<div style="font-weight:bold;margin-bottom:8px;font-size:14px;">⚡ Preview Rendering Notice</div>' +
+        '<div style="font-size:12px;opacity:0.9;line-height:1.5;">' + (e.message || "Initializing component...") + '</div>' +
+        '</div>';
+    }
+  });
+
+  var iconPaths = {
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+    user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+    home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+    layout: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>',
+    barchart: '<line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>',
+    barchart2: '<line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/>',
+    piechart: '<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',
+    trendingup: '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+    trendingdown: '<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/>',
+    menu: '<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    minus: '<path d="M5 12h14"/>',
+    trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+    trash2: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+    edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+    chevronright: '<path d="m9 18 6-6-6-6"/>',
+    chevrondown: '<path d="m6 9 6 6 6-6"/>',
+    chevronup: '<path d="m18 15-6-6-6 6"/>',
+    chevronleft: '<path d="m15 18-6-6 6-6"/>',
+    arrowright: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    arrowleft: '<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>',
+    calendar: '<rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    sliders: '<line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="1" x2="7" y1="14" y2="14"/><line x1="9" x2="15" y1="8" y2="8"/><line x1="17" x2="23" y1="16" y2="16"/>',
+    filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+    mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+    phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
+    download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+    upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+    share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/>',
+    share2: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/>',
+    file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+    folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+    star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+    heart: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
+    shoppingcart: '<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>',
+    creditcard: '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>',
+    dollarsign: '<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+    lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+    layers: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.9a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 12.5-8.58 3.9a2 2 0 0 1-1.66 0L2 12.5"/><path d="m22 17.5-8.58 3.9a2 2 0 0 1-1.66 0L2 17.5"/>'
+  };
+
+  function createIconComponent(name) {
+    var key = (name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    var path = iconPaths[key] || '<circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/>';
+
+    return function DynamicLucideIcon(props) {
+      props = props || {};
+      var size = props.size || 20;
+      var strokeWidth = props.strokeWidth || 2;
+      var color = props.color || "currentColor";
+      var className = props.className || "";
+
+      if (window.React && window.React.createElement) {
+        return window.React.createElement("svg", {
+          xmlns: "http://www.w3.org/2000/svg",
+          width: size,
+          height: size,
+          viewBox: "0 0 24 24",
+          fill: "none",
+          stroke: color,
+          strokeWidth: strokeWidth,
+          strokeLinecap: "round",
+          strokeLinejoin: "round",
+          className: className,
+          dangerouslySetInnerHTML: { __html: path },
+          ...props
+        });
+      }
+      return null;
+    };
+  }
+
+  var handler = {
+    get: function(target, prop) {
+      if (prop === "createIcons") {
+        return function() {};
+      }
+      if (prop === "icons") {
+        return new Proxy({}, handler);
+      }
+      if (typeof prop !== "string" || prop === "$$typeof" || prop === "then" || prop === "default") {
+        return undefined;
+      }
+      return createIconComponent(prop);
+    }
+  };
+
+  var lucideProxy = new Proxy({}, handler);
+
+  window.lucide = lucideProxy;
+  window.Lucide = lucideProxy;
+  window.LucideReact = lucideProxy;
+})();
+</script>
+`;
+
+    // Inject head polyfills immediately after <head> or at beginning
+    if (html.includes("<head>")) {
+      html = html.replace("<head>", `<head>${headPolyfills}`);
+    } else if (html.includes("<html>")) {
+      html = html.replace("<html>", `<html><head>${headPolyfills}</head>`);
+    } else {
+      html = `<head>${headPolyfills}</head>${html}`;
+    }
+
+    const interceptorScript = `
+<script>
+(function() {
   function triggerSvgDownload(svgContent, filename) {
     try {
       const blob = new Blob([svgContent], { type: "image/svg+xml;charset=utf-8" });
@@ -224,10 +364,10 @@ export default function WireframeCodeModal({
 </script>
 `;
 
-    if (rawHtml.includes("</body>")) {
-      return rawHtml.replace("</body>", interceptorScript + "</body>");
+    if (html.includes("</body>")) {
+      return html.replace("</body>", interceptorScript + "</body>");
     }
-    return rawHtml + interceptorScript;
+    return html + interceptorScript;
   };
 
   if (!isOpen) return null;

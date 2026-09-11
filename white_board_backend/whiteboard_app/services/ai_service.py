@@ -95,6 +95,7 @@ Output Specification:
    - If interactive (e.g. React), include useState hooks for common interactive elements (active tab, search input, button clicks).
    - If there are export or download buttons (such as "Export SVG" or "Download"), implement functional client-side download logic using Blob/URL.createObjectURL or SVG DOM serialization instead of placeholder alert() calls.
    - NEVER call alert(), confirm(), or prompt() because the document runs in a sandboxed preview environment where modals are disabled.
+   - For icons, use standard inline SVG icons or access icons safely via window.lucide (e.g. const {{ Search, User }} = window.lucide || {{}};). NEVER write raw ES module import statements inside preview_html scripts.
    - Use clean, semantic tags (nav, aside, main, header, section, button, input).
    - DO NOT include markdown code fence formatting (like ```json or ```jsx) in the JSON strings. The response must be pure valid JSON.
 
