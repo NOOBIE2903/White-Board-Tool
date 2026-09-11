@@ -93,6 +93,8 @@ Output Specification:
    - Identify header/navigation bars, sidebars, hero sections, card grids, forms, inputs, and action buttons based on relative positions and dimensions.
    - Use beautiful modern Tailwind CSS styling (responsive flexbox/grid, elegant borders, shadows, subtle gradients, accessible padding and typography).
    - If interactive (e.g. React), include useState hooks for common interactive elements (active tab, search input, button clicks).
+   - If there are export or download buttons (such as "Export SVG" or "Download"), implement functional client-side download logic using Blob/URL.createObjectURL or SVG DOM serialization instead of placeholder alert() calls.
+   - NEVER call alert(), confirm(), or prompt() because the document runs in a sandboxed preview environment where modals are disabled.
    - Use clean, semantic tags (nav, aside, main, header, section, button, input).
    - DO NOT include markdown code fence formatting (like ```json or ```jsx) in the JSON strings. The response must be pure valid JSON.
 

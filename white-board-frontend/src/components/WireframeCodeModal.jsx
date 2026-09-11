@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { generateCodeFromWireframe } from "../api/apiService";
+import { exportElementsToSVG, downloadSVGFile } from "../utils/svgExport";
 
 export default function WireframeCodeModal({
   isOpen,
@@ -110,6 +111,124 @@ export default function WireframeCodeModal({
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     toast.success(`Downloaded ${filename}`, { icon: "💾" });
+  };
+
+  // Export SVG from generated code/HTML or whiteboard elements
+  const handleExportSVG = () => {
+    try {
+      // 1. Check if generated preview or code contains SVG markup
+      const svgMatch =
+        result?.preview_html?.match(/<svg[\s\S]*?<\/svg>/i) ||
+        result?.code?.match(/<svg[\s\S]*?<\/svg>/i);
+
+      if (svgMatch && svgMatch[0]) {
+        let svgStr = svgMatch[0];
+        if (!svgStr.includes("xmlns=")) {
+          svgStr = svgStr.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
+        }
+        downloadSVGFile(svgStr, `wireframe-design-${boardId || "export"}.svg`);
+        toast.success("Vector SVG downloaded successfully!", { icon: "🎨" });
+        return;
+      }
+
+      // 2. Fallback: Export whiteboard elements directly to SVG
+      const svgString = exportElementsToSVG(elements);
+      downloadSVGFile(svgString, `whiteboard-${boardId || "sketch"}.svg`);
+      toast.success("Whiteboard SVG exported successfully!", { icon: "🎨" });
+    } catch (err) {
+      console.error("Export SVG error:", err);
+      toast.error("Failed to export SVG.");
+    }
+  };
+
+  // Listen for SVG export requests forwarded from inside the preview iframe
+  useEffect(() => {
+    const handleWindowMessage = (event) => {
+      if (event.data?.type === "EXPORT_SVG_REQUEST") {
+        handleExportSVG();
+      }
+    };
+    window.addEventListener("message", handleWindowMessage);
+    return () => window.removeEventListener("message", handleWindowMessage);
+  }, [result, elements, boardId]);
+
+  // Enhances preview HTML with SVG download handling and prevents sandbox alert exceptions
+  const preparePreviewHtml = (rawHtml) => {
+    if (!rawHtml) return "<html><body>No preview available</body></html>";
+
+    const interceptorScript = `
+<script>
+(function() {
+  // Prevent alert() from crashing in sandbox and provide friendly log
+  window.alert = function(msg) {
+    console.log("[Preview Notification]:", msg);
+  };
+
+  function triggerSvgDownload(svgContent, filename) {
+    try {
+      const blob = new Blob([svgContent], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename || "wireframe-vector-export.svg";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.warn("Iframe direct download failed, delegating to parent window:", err);
+      window.parent.postMessage({ type: "EXPORT_SVG_REQUEST" }, "*");
+    }
+  }
+
+  // Intercept any click on buttons or links containing "export svg"
+  document.addEventListener("click", function(e) {
+    const target = e.target.closest("button, a");
+    if (!target) return;
+
+    const text = (target.innerText || target.textContent || "").trim().toLowerCase();
+    const aria = (target.getAttribute("aria-label") || "").toLowerCase();
+    const title = (target.getAttribute("title") || "").toLowerCase();
+    const id = (target.id || "").toLowerCase();
+
+    if (
+      text.includes("export svg") ||
+      text.includes("export as svg") ||
+      aria.includes("export svg") ||
+      title.includes("export svg") ||
+      id.includes("export-svg") ||
+      id.includes("btn-svg")
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const svgEl = document.querySelector("svg");
+      if (svgEl) {
+        try {
+          const serializer = new XMLSerializer();
+          let svgStr = serializer.serializeToString(svgEl);
+          if (!svgStr.includes("xmlns=")) {
+            svgStr = svgStr.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
+          }
+          triggerSvgDownload(svgStr, "wireframe-vector-export.svg");
+          return;
+        } catch (err) {
+          console.warn("Could not serialize inner SVG:", err);
+        }
+      }
+
+      // Delegate to parent container
+      window.parent.postMessage({ type: "EXPORT_SVG_REQUEST" }, "*");
+    }
+  }, true);
+})();
+</script>
+`;
+
+    if (rawHtml.includes("</body>")) {
+      return rawHtml.replace("</body>", interceptorScript + "</body>");
+    }
+    return rawHtml + interceptorScript;
   };
 
   return (
@@ -281,41 +400,51 @@ export default function WireframeCodeModal({
                   </button>
                 </div>
 
-                {/* Device View Toggles for Live Preview */}
+                {/* Device View Toggles & Export SVG for Live Preview */}
                 {activeTab === "preview" && (
-                  <div className="flex items-center gap-1 bg-[#FFF8F4] p-1 rounded-xl border border-[#FFE2D1] text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 bg-[#FFF8F4] p-1 rounded-xl border border-[#FFE2D1] text-xs">
+                      <button
+                        onClick={() => setDeviceView("desktop")}
+                        className={`px-3 py-1 rounded-lg font-bold transition-colors ${
+                          deviceView === "desktop"
+                            ? "bg-white text-[#FF6B00] shadow-sm"
+                            : "text-[#6C757D] hover:text-[#FF6B00]"
+                        }`}
+                        title="Desktop View"
+                      >
+                        🖥️ Desktop
+                      </button>
+                      <button
+                        onClick={() => setDeviceView("tablet")}
+                        className={`px-3 py-1 rounded-lg font-bold transition-colors ${
+                          deviceView === "tablet"
+                            ? "bg-white text-[#FF6B00] shadow-sm"
+                            : "text-[#6C757D] hover:text-[#FF6B00]"
+                        }`}
+                        title="Tablet View (768px)"
+                      >
+                        📱 Tablet
+                      </button>
+                      <button
+                        onClick={() => setDeviceView("mobile")}
+                        className={`px-3 py-1 rounded-lg font-bold transition-colors ${
+                          deviceView === "mobile"
+                            ? "bg-white text-[#FF6B00] shadow-sm"
+                            : "text-[#6C757D] hover:text-[#FF6B00]"
+                        }`}
+                        title="Mobile View (375px)"
+                      >
+                        📲 Mobile
+                      </button>
+                    </div>
+
                     <button
-                      onClick={() => setDeviceView("desktop")}
-                      className={`px-3 py-1 rounded-lg font-bold transition-colors ${
-                        deviceView === "desktop"
-                          ? "bg-white text-[#FF6B00] shadow-sm"
-                          : "text-[#6C757D] hover:text-[#FF6B00]"
-                      }`}
-                      title="Desktop View"
+                      onClick={handleExportSVG}
+                      className="px-3.5 py-1.5 rounded-xl bg-[#FFF0E6] hover:bg-[#FFE2D1] text-[#FF6B00] font-bold text-xs flex items-center gap-1.5 border border-[#FFE2D1] transition-all shadow-sm"
+                      title="Export design as vector SVG file"
                     >
-                      🖥️ Desktop
-                    </button>
-                    <button
-                      onClick={() => setDeviceView("tablet")}
-                      className={`px-3 py-1 rounded-lg font-bold transition-colors ${
-                        deviceView === "tablet"
-                          ? "bg-white text-[#FF6B00] shadow-sm"
-                          : "text-[#6C757D] hover:text-[#FF6B00]"
-                      }`}
-                      title="Tablet View (768px)"
-                    >
-                      📱 Tablet
-                    </button>
-                    <button
-                      onClick={() => setDeviceView("mobile")}
-                      className={`px-3 py-1 rounded-lg font-bold transition-colors ${
-                        deviceView === "mobile"
-                          ? "bg-white text-[#FF6B00] shadow-sm"
-                          : "text-[#6C757D] hover:text-[#FF6B00]"
-                      }`}
-                      title="Mobile View (375px)"
-                    >
-                      📲 Mobile
+                      🎨 Export SVG
                     </button>
                   </div>
                 )}
@@ -333,7 +462,14 @@ export default function WireframeCodeModal({
                       onClick={handleDownload}
                       className="px-3.5 py-1.5 rounded-xl bg-[#FFF0E6] hover:bg-[#FFE2D1] text-[#FF6B00] font-bold text-xs flex items-center gap-1.5 border border-[#FFE2D1] transition-all"
                     >
-                      💾 Download
+                      💾 Download Code
+                    </button>
+                    <button
+                      onClick={handleExportSVG}
+                      className="px-3.5 py-1.5 rounded-xl bg-[#FFF0E6] hover:bg-[#FFE2D1] text-[#FF6B00] font-bold text-xs flex items-center gap-1.5 border border-[#FFE2D1] transition-all shadow-sm"
+                      title="Export design as vector SVG file"
+                    >
+                      🎨 Export SVG
                     </button>
                   </div>
                 )}
@@ -364,9 +500,9 @@ export default function WireframeCodeModal({
                   >
                     <iframe
                       title="Live Wireframe Preview"
-                      srcDoc={result.preview_html || "<html><body>No preview available</body></html>"}
+                      srcDoc={preparePreviewHtml(result.preview_html)}
                       className="w-full h-full border-none"
-                      sandbox="allow-scripts allow-same-origin"
+                      sandbox="allow-scripts allow-same-origin allow-modals allow-downloads allow-popups allow-forms"
                     />
                   </div>
                 </div>

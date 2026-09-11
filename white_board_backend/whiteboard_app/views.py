@@ -22,10 +22,21 @@ class UserViewSet(viewsets.ModelViewSet):
 
 class WhiteBoardViewSet(viewsets.ModelViewSet):
     serializer_class = WhiteBoardSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        # Allow anyone with a shared link to retrieve the whiteboard details
+        if self.action == 'retrieve':
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
-        return WhiteBoard.objects.filter(owner=self.request.user)
+        # For retrieving specific whiteboard via direct link, allow access across all boards
+        if self.action == 'retrieve':
+            return WhiteBoard.objects.all()
+        # For dashboard listing, only show boards owned by the authenticated user
+        if self.request.user.is_authenticated:
+            return WhiteBoard.objects.filter(owner=self.request.user)
+        return WhiteBoard.objects.none()
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
@@ -47,7 +58,7 @@ def health_check(request):
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.AllowAny])
 def generate_code_from_wireframe(request, board_id):
     try:
         try:

@@ -5,6 +5,7 @@ import { getWhiteboardDetails } from "../api/apiService";
 import { getWsUrl } from "../config/api";
 import toast from "react-hot-toast";
 import WireframeCodeModal from "./WireframeCodeModal";
+import { exportElementsToSVG, downloadSVGFile } from "../utils/svgExport";
 
 function CollaborativeWhiteboard() {
   const { boardId } = useParams();
@@ -65,7 +66,17 @@ function CollaborativeWhiteboard() {
         setUser("Creator");
       }
     } else {
-      setUser("Anonymous");
+      let guestName = null;
+      try {
+        guestName = sessionStorage.getItem("guest_user_name");
+      } catch (_) {}
+      if (!guestName) {
+        guestName = `Guest-${Math.floor(1000 + Math.random() * 9000)}`;
+        try {
+          sessionStorage.setItem("guest_user_name", guestName);
+        } catch (_) {}
+      }
+      setUser(guestName);
     }
   }, []);
 
@@ -572,6 +583,23 @@ function CollaborativeWhiteboard() {
     }
   };
 
+  const handleExportCanvasSVG = () => {
+    if (!elements || elements.length === 0) {
+      toast.error("Canvas is empty. Draw some shapes or lines first!", { id: "empty-canvas-svg" });
+      return;
+    }
+    try {
+      const width = canvasWidth || 1200;
+      const height = 620;
+      const svg = exportElementsToSVG(elements, width, height);
+      downloadSVGFile(svg, `whiteboard-${boardId || "sketch"}.svg`);
+      toast.success("Whiteboard sketch exported as SVG!", { icon: "🎨" });
+    } catch (err) {
+      console.error("Failed to export SVG:", err);
+      toast.error("Failed to export SVG.");
+    }
+  };
+
   const sendChat = () => {
     const trimmed = message.trim();
     if (!trimmed) return;
@@ -644,6 +672,15 @@ function CollaborativeWhiteboard() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Export SVG Button */}
+          <button
+            onClick={handleExportCanvasSVG}
+            className="px-4 py-2 rounded-2xl bg-[#FFF0E6] hover:bg-[#FFE2D1] text-[#FF6B00] font-bold text-xs border border-[#FFE2D1] transition-all flex items-center gap-1.5 shadow-sm"
+            title="Export whiteboard sketch as SVG file"
+          >
+            🎨 Export SVG
+          </button>
+
           {/* Copy Share Link Button */}
           <button
             onClick={handleCopy}
@@ -760,6 +797,15 @@ function CollaborativeWhiteboard() {
                 ↪️ Redo
               </button>
             </div>
+
+            {/* Quick Export SVG Button */}
+            <button
+              onClick={handleExportCanvasSVG}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#FFF0E6] text-[#FF6B00] hover:bg-[#FFE2D1] border border-[#FFE2D1] transition-all flex items-center gap-1"
+              title="Export canvas drawing to SVG"
+            >
+              🎨 SVG
+            </button>
 
             {/* AI Wireframe to Code Trigger Button */}
             <button
