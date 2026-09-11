@@ -157,10 +157,14 @@ export default function WireframeCodeModal({
 
     let html = rawHtml;
 
+    // Strip any vanilla lucide CDN script tags that overwrite our React components with raw object descriptors
+    html = html.replace(/<script[^>]*src=["'][^"']*lucide[^"']*["'][^>]*>\s*<\/script>/gi, "");
+
     // Transform any ES module imports in preview HTML to global destructuring
     html = html
-      .replace(/import\s+\{([^}]+)\}\s+from\s+['"]lucide-react['"];?/g, "const { $1 } = window.lucide || {};")
-      .replace(/import\s+\*\s+as\s+lucide\s+from\s+['"]lucide-react['"];?/g, "const lucide = window.lucide;")
+      .replace(/import\s+\{([^}]+)\}\s+from\s+['"][^'"]*lucide[^'"]*['"];?/g, "const { $1 } = window.lucide || {};")
+      .replace(/import\s+\*\s+as\s+([A-Za-z0-9_]+)\s+from\s+['"][^'"]*lucide[^'"]*['"];?/g, "const $1 = window.lucide;")
+      .replace(/import\s+([A-Za-z0-9_]+)\s+from\s+['"][^'"]*lucide[^'"]*['"];?/g, "const $1 = window.lucide;")
       .replace(/import\s+React,?\s*\{?([^}]*)\}?\s+from\s+['"]react['"];?/g, (match, p1) => (p1.trim() ? `const { ${p1} } = React;` : "// React imported"))
       .replace(/import\s+ReactDOM\s+from\s+['"]react-dom['"];?/g, "// ReactDOM imported");
 
@@ -197,6 +201,7 @@ export default function WireframeCodeModal({
     layout: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>',
     barchart: '<line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>',
     barchart2: '<line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/>',
+    barchart3: '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
     piechart: '<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',
     trendingup: '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
     trendingdown: '<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/>',
@@ -240,7 +245,7 @@ export default function WireframeCodeModal({
     var key = (name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     var path = iconPaths[key] || '<circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/>';
 
-    return function DynamicLucideIcon(props) {
+    var DynamicLucideIcon = function(props) {
       props = props || {};
       var size = props.size || 20;
       var strokeWidth = props.strokeWidth || 2;
@@ -248,7 +253,13 @@ export default function WireframeCodeModal({
       var className = props.className || "";
 
       if (window.React && window.React.createElement) {
-        return window.React.createElement("svg", {
+        var cleanProps = Object.assign({}, props);
+        delete cleanProps.size;
+        delete cleanProps.color;
+        delete cleanProps.strokeWidth;
+        delete cleanProps.className;
+
+        return window.React.createElement("svg", Object.assign({
           xmlns: "http://www.w3.org/2000/svg",
           width: size,
           height: size,
@@ -259,12 +270,14 @@ export default function WireframeCodeModal({
           strokeLinecap: "round",
           strokeLinejoin: "round",
           className: className,
-          dangerouslySetInnerHTML: { __html: path },
-          ...props
-        });
+          dangerouslySetInnerHTML: { __html: path }
+        }, cleanProps));
       }
       return null;
     };
+
+    DynamicLucideIcon.displayName = name || "LucideIcon";
+    return DynamicLucideIcon;
   }
 
   var handler = {
@@ -284,9 +297,30 @@ export default function WireframeCodeModal({
 
   var lucideProxy = new Proxy({}, handler);
 
-  window.lucide = lucideProxy;
-  window.Lucide = lucideProxy;
-  window.LucideReact = lucideProxy;
+  try {
+    Object.defineProperty(window, "lucide", {
+      get: function() { return lucideProxy; },
+      set: function() {},
+      configurable: true,
+      enumerable: true
+    });
+    Object.defineProperty(window, "Lucide", {
+      get: function() { return lucideProxy; },
+      set: function() {},
+      configurable: true,
+      enumerable: true
+    });
+    Object.defineProperty(window, "LucideReact", {
+      get: function() { return lucideProxy; },
+      set: function() {},
+      configurable: true,
+      enumerable: true
+    });
+  } catch(e) {
+    window.lucide = lucideProxy;
+    window.Lucide = lucideProxy;
+    window.LucideReact = lucideProxy;
+  }
 })();
 </script>
 `;
