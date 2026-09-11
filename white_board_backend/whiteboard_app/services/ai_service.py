@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 import requests
 
 
@@ -135,46 +136,62 @@ Required JSON Structure:
     }
 
     configured_model = os.getenv("GEMINI_MODEL")
-    models_to_try = [configured_model] if configured_model else ["gemini-3.6-flash", "gemini-3.7-flash"]
+    default_models = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"]
+    if configured_model:
+        models_to_try = [configured_model] + [m for m in default_models if m != configured_model]
+    else:
+        models_to_try = default_models
+
     last_error = None
 
     for model in models_to_try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-        try:
-            resp = requests.post(
-                url,
-                headers={"Content-Type": "application/json"},
-                data=json.dumps(payload),
-                timeout=45
-            )
+        # Retry transient 503/429 spikes up to 2 times
+        for attempt in range(2):
+            try:
+                resp = requests.post(
+                    url,
+                    headers={"Content-Type": "application/json"},
+                    data=json.dumps(payload),
+                    timeout=75
+                )
 
-            if resp.status_code == 200:
-                result_json = resp.json()
-                candidates = result_json.get("candidates", [])
-                if not candidates:
-                    raise ValueError("No generation candidate returned by Gemini.")
+                if resp.status_code == 200:
+                    result_json = resp.json()
+                    candidates = result_json.get("candidates", [])
+                    if not candidates:
+                        raise ValueError("No generation candidate returned by Gemini.")
 
-                content_text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                
-                # Parse structured JSON from model
-                try:
-                    parsed = json.loads(content_text)
-                    return parsed
-                except json.JSONDecodeError:
-                    # If model returned text wrapped with markdown fences, strip them
-                    match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", content_text)
-                    if match:
-                        return json.loads(match.group(1))
-                    raise ValueError(f"Could not parse response as JSON: {content_text[:200]}")
+                    content_text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                    
+                    # Parse structured JSON from model
+                    try:
+                        parsed = json.loads(content_text)
+                        return parsed
+                    except json.JSONDecodeError:
+                        match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", content_text)
+                        if match:
+                            return json.loads(match.group(1))
+                        raise ValueError(f"Could not parse response as JSON: {content_text[:200]}")
 
-            elif resp.status_code in (404, 400):
-                last_error = f"Gemini API returned status {resp.status_code}: {resp.text}"
-                continue
-            else:
-                resp.raise_for_status()
+                elif resp.status_code in (503, 429):
+                    last_error = f"Model {model} is experiencing high demand (status {resp.status_code})."
+                    if attempt == 0:
+                        time.sleep(2)
+                        continue
+                    break
 
-        except Exception as e:
-            last_error = str(e)
-            continue
+                elif resp.status_code in (404, 400):
+                    last_error = f"Gemini API returned status {resp.status_code}: {resp.text}"
+                    break
+                else:
+                    resp.raise_for_status()
 
-    raise RuntimeError(f"Failed to generate code with Gemini: {last_error}")
+            except Exception as e:
+                last_error = str(e)
+                if attempt == 0 and ("503" in str(e) or "429" in str(e)):
+                    time.sleep(2)
+                    continue
+                break
+
+    raise RuntimeError(f"AI Code Generation is currently busy. Please try again: {last_error}")
